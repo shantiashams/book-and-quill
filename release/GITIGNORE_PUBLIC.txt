@@ -1,0 +1,31 @@
+# Review and merge into the project's .gitignore BEFORE the first git add.
+# This does not untrack anything already committed. Review git diff --cached.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+dist/
+windows/flutter/ephemeral/
+.vs/
+.idea/
+*.iml
+*.log
+
+# Keep imported game assets and local import metadata out of a public repo.
+/assets/imported/**
+!/assets/imported/README.txt
+/windows/runner/resources/app_icon.ico
+
+# Never commit personal saves or private build/signing material.
+library.json
+library.backup.json
+settings.json
+stats.json
+shelves.json
+*.qbook
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key

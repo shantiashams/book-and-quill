@@ -1,0 +1,25 @@
+BOOK ITEM DRAG TEXTURE FIX
+==========================
+
+1. Copy the lib and tools folders into the root of your existing
+   book_and_quill project. Allow Windows to merge/replace files.
+
+2. From the project root, extract Minecraft's normal item-book texture:
+
+   powershell -ExecutionPolicy Bypass -File .\tools\import_book_item_texture.ps1
+
+   This creates:
+   assets\imported\textures\book_item.png
+
+3. Keep this existing file unchanged:
+   assets\imported\textures\book.png
+
+   It is the Book & Quill page GUI used by the editor, not an item icon.
+
+4. Restart the app so Flutter bundles the new asset:
+
+   flutter clean
+   powershell -ExecutionPolicy Bypass -File .\tools\run_windows.ps1
+
+If you already have the Minecraft normal book item PNG, you may skip step 2
+and place it at assets\imported\textures\book_item.png yourself.

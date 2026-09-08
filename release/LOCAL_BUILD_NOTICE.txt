@@ -1,0 +1,22 @@
+Book and Quill - local test build
+Created by SHANTIASHAMS
+
+An independent fan-made writing app. Not an official Minecraft product;
+not approved by or associated with Mojang or Microsoft.
+
+This build contains the assets present in your local project, including
+imported textures, fonts, audio, and cover images. Building this installer
+does not grant redistribution rights. Review the rights and attribution
+requirements for these files and the application branding before publishing.
+
+Saved books and settings stay in:
+%LOCALAPPDATA%\Book and Quill
+
+The installer uses a separate program folder:
+%LOCALAPPDATA%\Programs\Book and Quill
+
+Uninstalling the app does not delete your saved books or settings.
+Back up your writing before testing upgrades.
+
+This is an unsigned build. Do not disable Windows security protections.
+Review and test the build before deciding whether to run or distribute it.

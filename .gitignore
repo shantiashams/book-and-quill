@@ -1,0 +1,46 @@
+# Flutter and native build output
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+dist/
+windows/flutter/ephemeral/
+windows/flutter/generated_plugin_registrant.h
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugins.cmake
+
+# Editor and machine-specific files
+.vs/
+.idea/
+*.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.log
+flutter_build_log.txt
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+
+# Imported assets and generated app icon stay on the developer's machine.
+# Keep only the documentation and its parent directories under imported/.
+/assets/imported/**
+!/assets/imported/**/
+!/assets/imported/**/README.md
+/windows/runner/resources/app_icon.ico
+
+# Personal writing, preferences, credentials, and signing keys
+library.json
+library.backup.json
+settings.json
+stats.json
+shelves.json
+*.qbook
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key

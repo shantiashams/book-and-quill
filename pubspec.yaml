@@ -1,0 +1,32 @@
+name: book_and_quill
+description: A Minecraft-inspired desktop writing app built with Dart and Flutter.
+publish_to: "none"
+version: 3.3.2+21
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_soloud: 3.5.4
+  file_selector: ^1.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/imported/
+    - assets/imported/textures/
+    - assets/imported/sounds/
+    - assets/imported/fonts/
+  fonts:
+    - family: MinecraftLocalV2
+      fonts:
+        - asset: assets/imported/fonts/minecraft_local_v2.ttf
+    - family: MinecraftBookGridV3
+      fonts:
+        - asset: assets/imported/fonts/minecraft_book_grid_v3.ttf
