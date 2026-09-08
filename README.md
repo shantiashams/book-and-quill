@@ -131,12 +131,12 @@ location. Back up your writing before testing updates.
 
 ## Assets and licensing
 
-This repository contains application source and import/build tools. Imported
-Minecraft textures, audio, derived fonts, album art, and the generated app
-icon are not included. See the
-[Minecraft usage guidelines](https://www.minecraft.net/en-us/usage-guidelines).
-Third-party assets and dependencies retain their respective rights and
-license terms. No project-wide source-code license has been selected yet.
+This project includes textures, sounds, music, fonts, and app icon assets sourced from or derived from Minecraft, alongside album artwork.
+
+These assets belong to their respective rights holders. Their inclusion does not grant additional redistribution rights. See the [Minecraft usage guidelines](https://www.minecraft.net/en-us/usage-guidelines).
+
+Third-party assets and dependencies retain their respective rights and license terms. No project-wide source-code license has been selected yet.
+
 
 ## Feedback
 
