@@ -157,7 +157,7 @@ class PageSheet extends StatelessWidget {
                                   minLines: _bookGridRows,
                                   maxLines: _bookGridRows,
                                   inputFormatters: <TextInputFormatter>[
-                                    _MinecraftWordWrapFormatter(
+                                    MinecraftWordWrapFormatter(
                                       maxWidth: textWidth,
                                       textStyle: bodyStyle,
                                     ),
@@ -400,8 +400,8 @@ class _BookPageArrowState extends State<_BookPageArrow> {
   }
 }
 
-class _MinecraftWordWrapFormatter extends TextInputFormatter {
-  _MinecraftWordWrapFormatter({
+class MinecraftWordWrapFormatter extends TextInputFormatter {
+  MinecraftWordWrapFormatter({
     required this.maxWidth,
     required this.textStyle,
   });
@@ -414,7 +414,8 @@ class _MinecraftWordWrapFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.isEmpty || maxWidth <= 0) {
+    if ((newValue.composing.isValid && !newValue.composing.isCollapsed) ||
+        newValue.text.isEmpty || maxWidth <= 0) {
       return newValue;
     }
     final normalized = _normalize(newValue.text);
@@ -522,11 +523,11 @@ class _MinecraftWordWrapFormatter extends TextInputFormatter {
     }
     final pieces = <_WrappedWordPiece>[];
     var current = '';
-    for (var index = 0; index < word.length; index++) {
-      final next = '$current${word[index]}';
+    for (final character in word.characters) {
+      final next = '$current$character';
       if (current.isNotEmpty && !_fits(next)) {
         pieces.add(_WrappedWordPiece(current, isCompleteLine: true));
-        current = word[index];
+        current = character;
       } else {
         current = next;
       }

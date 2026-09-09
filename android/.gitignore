@@ -1,0 +1,7 @@
+/local.properties
+/key.properties
+/.gradle/
+/captures/
+*.jks
+*.keystore
+/app/src/main/res/drawable/book_and_quil.png

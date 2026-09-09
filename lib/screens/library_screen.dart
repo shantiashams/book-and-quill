@@ -12,6 +12,7 @@ import '../models/app_settings.dart';
 import '../models/book_record.dart';
 import '../models/usage_stats.dart';
 import '../services/book_file_service.dart';
+import '../services/android_platform.dart';
 import '../services/book_storage.dart';
 import '../services/game_sound_service.dart';
 import '../theme/app_background.dart';
@@ -56,7 +57,7 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final List<BookRecord?> _slots = List<BookRecord?>.from(widget.initialSlots);
   late final List<String> _shelfNames =
       List<String>.from(widget.initialShelfNames);
@@ -102,6 +103,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _shelfSwipeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 190),
@@ -260,13 +262,18 @@ class _LibraryScreenState extends State<LibraryScreen>
     final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
     final action = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromRect(Rect.fromPoints(position, position), Offset.zero & overlay.size),
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(overlay.globalToLocal(position), overlay.globalToLocal(position)),
+        Offset.zero & overlay.size,
+      ),
       color: const Color(0xFF1A1018),
       items: <PopupMenuEntry<String>>[
         PopupMenuItem<String>(value: 'favorite', child: Text(book.favorite ? 'Remove favorite' : 'Mark favorite')),
         const PopupMenuItem<String>(value: 'rename', child: Text('Rename book')),
         const PopupMenuItem<String>(value: 'customize', child: Text('Customize book')),
         const PopupMenuItem<String>(value: 'duplicate', child: Text('Duplicate book')),
+        if (AndroidPlatform.isAndroid)
+          const PopupMenuItem<String>(value: 'move', child: Text('Move book')),
         const PopupMenuItem<String>(value: 'export', child: Text('Export book...')),
         const PopupMenuDivider(),
         const PopupMenuItem<String>(
@@ -295,6 +302,9 @@ class _LibraryScreenState extends State<LibraryScreen>
       case 'duplicate':
         await _duplicateBook(book);
         break;
+      case 'move':
+        await _moveBookOnTouch(slot, book);
+        break;
       case 'export':
         await _exportBook(book);
         break;
@@ -314,6 +324,46 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
     setState(() => _slots[slot] = book.copyWith(title: name, updatedAt: DateTime.now()));
     await widget.storage.saveSlots(_slots);
+  }
+
+  Future<void> _moveBookOnTouch(int source, BookRecord book) async {
+    final destinations = <int>[
+      for (var slot = 0; slot < _slots.length; slot++)
+        if (_slots[slot] == null) slot,
+      _slots.length,
+    ];
+    final target = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Move book'),
+        content: SizedBox(width: 360, height: 320,
+          child: ListView.builder(
+            itemCount: destinations.length,
+            itemBuilder: (context, index) {
+              final slot = destinations[index];
+              return ListTile(
+                title: Text(slot == _slots.length ? 'New shelf'
+                    : '${_shelfName(slot ~/ BookStorage.shelfSize)} — slot ${slot % BookStorage.shelfSize + 1}'),
+                onTap: () => Navigator.of(context).pop(slot),
+              );
+            },
+          ),
+        ),
+        actions: <Widget>[TextButton(
+          onPressed: () => Navigator.of(context).pop(), child: const Text('CANCEL'))],
+      ),
+    );
+    if (!mounted || target == null || _slots[source]?.id != book.id) return;
+    if (target < _slots.length && _slots[target] != null) return;
+    setState(() {
+      _ensureShelf(target ~/ BookStorage.shelfSize);
+      _slots[source] = null;
+      _slots[target] = book.copyWith(slot: target, updatedAt: DateTime.now());
+      _shelfIndex = target ~/ BookStorage.shelfSize;
+      _shelfViewKey++;
+    });
+    await widget.storage.saveSlots(_slots);
+    await widget.storage.saveShelfNames(_shelfNames);
   }
 
   Future<void> _customizeBook(int slot, BookRecord book) async {
@@ -396,7 +446,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
-        Rect.fromPoints(position, position),
+        Rect.fromPoints(overlay.globalToLocal(position), overlay.globalToLocal(position)),
         Offset.zero & overlay.size,
       ),
       color: const Color(0xFF1A1018),
@@ -452,6 +502,11 @@ class _LibraryScreenState extends State<LibraryScreen>
     } on Object {
       // Exiting must remain available even if a final disk write fails.
     }
+    if (AndroidPlatform.isAndroid) {
+      _exitInProgress = false;
+      await SystemNavigator.pop();
+      return;
+    }
     try {
       await widget.sounds.dispose();
     } on Object {
@@ -468,7 +523,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
-        Rect.fromPoints(position, position),
+        Rect.fromPoints(overlay.globalToLocal(position), overlay.globalToLocal(position)),
         Offset.zero & overlay.size,
       ),
       color: const Color(0xFF1A1018),
@@ -1272,6 +1327,16 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (AndroidPlatform.isAndroid && state != AppLifecycleState.resumed) {
+      _statsSaveTimer?.cancel();
+      unawaited(widget.storage.saveUsageStats(_usageStats).catchError((Object error) {
+        debugPrint('Could not save backgrounded statistics: $error');
+      }));
+    }
+  }
+
   Future<void> _resetUsageStats() async {
     _statsSaveTimer?.cancel();
     _usageStats = UsageStats.empty;
@@ -1295,6 +1360,7 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _statsSaveTimer?.cancel();
     _dragShelfTimer?.cancel();
     _dragReleaseTimer?.cancel();
@@ -1330,6 +1396,9 @@ class _LibraryScreenState extends State<LibraryScreen>
               behavior: HitTestBehavior.opaque,
               onSecondaryTapUp: (details) =>
                   _showMainMenu(details.globalPosition),
+              onLongPressStart: AndroidPlatform.isAndroid
+                  ? (details) => _showMainMenu(details.globalPosition)
+                  : null,
               child: Stack(
                 key: _libraryStackKey,
                 children: <Widget>[
@@ -1341,12 +1410,15 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
+                padding: EdgeInsets.all(AndroidPlatform.isAndroid ? 12 : 22),
+                child: LayoutBuilder(builder: (context, constraints) {
+                  final keyboardOpen = AndroidPlatform.isAndroid &&
+                      MediaQuery.viewInsetsOf(context).bottom > 0;
+                  final content = Column(
                   children: <Widget>[
                     _buildHeader(occupied),
                     const SizedBox(height: 10),
-                    if (_query.trim().isEmpty) ...<Widget>[
+                    if (_query.trim().isEmpty && !keyboardOpen) ...<Widget>[
                       _buildShelfTitle(),
                       const SizedBox(height: 6),
                     ],
@@ -1355,10 +1427,19 @@ class _LibraryScreenState extends State<LibraryScreen>
                           ? _buildShelf()
                           : _buildSearchResults(),
                     ),
-                    const SizedBox(height: 12),
-                    _buildFooter(),
+                    if (!keyboardOpen) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _buildFooter(),
+                    ],
                   ],
-                ),
+                  );
+                  if (!AndroidPlatform.isAndroid) return content;
+                  return SingleChildScrollView(child: SizedBox(
+                    height: math.max(constraints.maxHeight,
+                      keyboardOpen ? 200.0 : 360.0).toDouble(),
+                    child: content,
+                  ));
+                }),
               ),
             ),
             if (_dragSourceSlot != null && !_dragSettling) ...<Widget>[
@@ -1412,6 +1493,48 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildHeader(int occupied) {
+    if (AndroidPlatform.isAndroid) {
+      return Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+        if (MediaQuery.viewInsetsOf(context).bottom == 0) ...<Widget>[
+        Row(children: <Widget>[
+          CompositedTransformTarget(link: _headerIconLink,
+            child: const SizedBox(width: 64, height: 64)),
+          const SizedBox(width: 8),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const FittedBox(fit: BoxFit.scaleDown,
+                child: Text('BOOK AND QUILL',
+                  style: TextStyle(color: Colors.white, fontSize: 18))),
+              Text('$occupied books', style: const TextStyle(fontSize: 11)),
+              const Row(children: <Widget>[
+                Flexible(child: Text('Made by SHANTIASHAMS',
+                  style: TextStyle(color: BookAndQuillColors.gold, fontSize: 9))),
+                SizedBox(width: 4), _PlayerHeadIcon(),
+              ]),
+            ],
+          )),
+          GearButton(sounds: widget.sounds, onPressed: _openSettings),
+        ]),
+        const SizedBox(height: 8),
+        ],
+        TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _query = value),
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+          decoration: InputDecoration(
+            isDense: true, hintText: 'Search your library',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _query.isEmpty ? null : IconButton(
+              tooltip: 'Clear search', icon: const Icon(Icons.close),
+              onPressed: () { _searchController.clear(); setState(() => _query = ''); }),
+            filled: true, fillColor: const Color(0xCC1A1018),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ]);
+    }
     return Row(
       children: <Widget>[
         CompositedTransformTarget(
@@ -1489,12 +1612,15 @@ class _LibraryScreenState extends State<LibraryScreen>
       height: 38,
       child: Center(
         child: Tooltip(
-          message: 'Click to rename',
+          message: AndroidPlatform.isAndroid ? 'Tap to rename; hold for menu' : 'Click to rename',
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _renameCurrentShelf,
+              onLongPressStart: AndroidPlatform.isAndroid
+                  ? (details) => _showShelfMenu(details.globalPosition)
+                  : null,
               onSecondaryTapUp: (details) =>
                   _showShelfMenu(details.globalPosition),
               child: Padding(
@@ -1546,7 +1672,8 @@ class _LibraryScreenState extends State<LibraryScreen>
           onSlotPressed: interactive ? _openSlot : (_) {},
           onSlotSecondaryPressed:
               interactive ? _showSlotMenu : (_, __) {},
-          onBookPointerDown: interactive ? _prepareBookDrag : null,
+          onBookPointerDown: interactive && !AndroidPlatform.isAndroid
+              ? _prepareBookDrag : null,
           highlightedSlot: interactive ? _dragHoverSlot : null,
           draggedSlot: interactive ? draggedLocalSlot : null,
           dragActive: interactive && _dragSourceSlot != null,
@@ -1717,6 +1844,26 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildFooter() {
+    if (AndroidPlatform.isAndroid) {
+      return SizedBox(height: 48, child: Row(children: <Widget>[
+        IconButton(tooltip: 'Previous shelf',
+          onPressed: _shelfIndex > 0 && !_shelfSwipeActive
+              ? () => _showShelf(_shelfIndex - 1) : null,
+          icon: const Icon(Icons.chevron_left)),
+        Expanded(child: Text('Shelf ${_shelfIndex + 1} of $_shelfCount',
+          textAlign: TextAlign.center, style: const TextStyle(fontSize: 12))),
+        IconButton(tooltip: 'Next shelf',
+          onPressed: !_shelfSwipeActive ? _goToNextShelf : null,
+          icon: const Icon(Icons.chevron_right)),
+        Builder(builder: (buttonContext) => IconButton(
+          tooltip: 'Shelf menu', icon: const Icon(Icons.more_vert),
+          onPressed: () {
+            final box = buttonContext.findRenderObject()! as RenderBox;
+            _showShelfMenu(box.localToGlobal(Offset.zero));
+          },
+        )),
+      ]));
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final showHint = constraints.maxWidth >= 1120;
@@ -2408,8 +2555,7 @@ class _BookCustomizationDialogState
                     onPressed: () => _changeVisualVariant(-1),
                     icon: const Icon(Icons.chevron_left),
                   ),
-                  SizedBox(
-                    width: 172,
+                  Flexible(
                     child: Text(
                       'BOOK DESIGN ${_visualVariant + 1}',
                       textAlign: TextAlign.center,
@@ -2505,8 +2651,10 @@ class _BookCustomizationDialogState
                 style: const TextStyle(color: Color(0xFFD7D7D7)),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: <Widget>[
                   OutlinedButton(
                     onPressed: _selectOriginal,
@@ -2524,7 +2672,6 @@ class _BookCustomizationDialogState
                     ),
                     child: const Text('ORIGINAL'),
                   ),
-                  const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: _selectCustom,
                     style: OutlinedButton.styleFrom(

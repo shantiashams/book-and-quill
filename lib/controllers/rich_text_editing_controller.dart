@@ -239,7 +239,9 @@ class RichTextEditingController extends TextEditingController {
 
   @override
   set value(TextEditingValue newValue) {
-    newValue = _sanitizeAlignmentMarkers(newValue);
+    if (!newValue.composing.isValid || newValue.composing.isCollapsed) {
+      newValue = _sanitizeAlignmentMarkers(newValue);
+    }
     final oldValue = super.value;
     if (!_programmatic && oldValue.text != newValue.text) {
       onBeforeUserEdit();
@@ -250,7 +252,9 @@ class RichTextEditingController extends TextEditingController {
       _searchQuery,
     );
     super.value = newValue;
-    if (!_programmatic && oldValue.text != newValue.text) {
+    if (!_programmatic && (oldValue.text != newValue.text ||
+        (oldValue.composing.isValid && !oldValue.composing.isCollapsed &&
+         (!newValue.composing.isValid || newValue.composing.isCollapsed)))) {
       onPageChanged(page);
     }
   }

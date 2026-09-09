@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_selector/file_selector.dart';
 
 import '../models/book_record.dart';
+import 'android_platform.dart';
 
 class BookFileService {
   static const XTypeGroup _bookFiles = XTypeGroup(
@@ -12,6 +13,19 @@ class BookFileService {
   );
 
   Future<bool> exportBook(BookRecord book) async {
+    final contents = const JsonEncoder.withIndent('  ').convert(
+      <String, Object>{
+        'format': 'book-and-quill-book',
+        'formatVersion': 4,
+        'exportedAt': DateTime.now().toIso8601String(),
+        'book': book.toJson(),
+      },
+    );
+    if (AndroidPlatform.isAndroid) {
+      return AndroidPlatform.exportDocument(
+        '${_safeFileName(book.title)}.qbook', contents,
+      );
+    }
     final location = await getSaveLocation(
       suggestedName: '${_safeFileName(book.title)}.qbook',
       acceptedTypeGroups: const <XTypeGroup>[_bookFiles],
@@ -20,15 +34,7 @@ class BookFileService {
       return false;
     }
 
-    final payload = <String, Object>{
-      'format': 'book-and-quill-book',
-      'formatVersion': 4,
-      'exportedAt': DateTime.now().toIso8601String(),
-      'book': book.toJson(),
-    };
-    final bytes = Uint8List.fromList(
-      utf8.encode(const JsonEncoder.withIndent('  ').convert(payload)),
-    );
+    final bytes = Uint8List.fromList(utf8.encode(contents));
     await XFile.fromData(
       bytes,
       mimeType: 'application/json',
@@ -38,12 +44,20 @@ class BookFileService {
   }
 
   Future<BookRecord?> importBook({required int slot}) async {
-    final file = await openFile(acceptedTypeGroups: const <XTypeGroup>[_bookFiles]);
-    if (file == null) {
+    final String? contents;
+    if (AndroidPlatform.isAndroid) {
+      contents = await AndroidPlatform.importDocument();
+    } else {
+      final file = await openFile(
+        acceptedTypeGroups: const <XTypeGroup>[_bookFiles],
+      );
+      contents = await file?.readAsString();
+    }
+    if (contents == null) {
       return null;
     }
 
-    final decoded = jsonDecode(await file.readAsString());
+    final decoded = jsonDecode(contents);
     if (decoded is! Map) {
       throw const FormatException('This is not a Book and Quill book file.');
     }

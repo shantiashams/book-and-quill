@@ -10,6 +10,7 @@ import '../models/app_settings.dart';
 import '../models/book_record.dart';
 import '../models/rich_page.dart';
 import '../services/book_file_service.dart';
+import '../services/android_platform.dart';
 import '../services/fullscreen_service.dart';
 import '../services/game_sound_service.dart';
 import '../theme/app_background.dart';
@@ -18,6 +19,7 @@ import '../widgets/gear_button.dart';
 import '../widgets/page_sheet.dart';
 import '../widgets/pixel_button.dart';
 import '../widgets/rename_book_dialog.dart';
+import '../widgets/book_text_entry_dialog.dart';
 
 typedef TextActivityCallback = void Function(
   int typed,
@@ -84,7 +86,8 @@ class BookEditorScreen extends StatefulWidget {
   State<BookEditorScreen> createState() => _BookEditorScreenState();
 }
 
-class _BookEditorScreenState extends State<BookEditorScreen> {
+class _BookEditorScreenState extends State<BookEditorScreen>
+    with WidgetsBindingObserver {
   static const int _historyLimit = 120;
   static const List<int> _minecraftColors = <int>[
     0xFF000000,
@@ -142,6 +145,8 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
   bool _reflowScheduled = false;
   int? _reflowStartPage;
   bool _twoPage = false;
+  bool _mobileToolsOpen = false;
+  bool _mobileLayoutInitialized = false;
   late bool _autoHideEditorControls;
   late double _bookSizeScale;
   late PageDateFormat _pageDateFormat;
@@ -166,8 +171,9 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _book = widget.initialBook;
-    _twoPage = widget.initialTwoPage;
+    _twoPage = widget.initialTwoPage && !AndroidPlatform.isAndroid;
     _autoHideEditorControls = widget.autoHideEditorControls;
     _bookSizeScale = widget.bookSizeScale;
     _pageDateFormat = widget.pageDateFormat;
@@ -194,6 +200,33 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
         controller?.refreshObfuscatedText();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!AndroidPlatform.isAndroid) return;
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    final desired = _mobileLayoutInitialized
+        ? (_twoPage && wide)
+        : (widget.initialTwoPage && wide);
+    _mobileLayoutInitialized = true;
+    if (_twoPage != desired) {
+      _book = _captureBook();
+      _twoPage = desired;
+      if (_twoPage) _currentPage = (_currentPage ~/ 2) * 2;
+      _installPageControllers();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (AndroidPlatform.isAndroid && state != AppLifecycleState.resumed) {
+      // Flush the debounce before Android backgrounds or suspends this route.
+      unawaited(_saveNow().catchError((Object error) {
+        debugPrint('Could not save backgrounded book: $error');
+      }));
+    }
   }
 
   @override
@@ -267,17 +300,17 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
     int focusVisibleIndex = 0,
     int? focusPlainOffset,
   }) {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    for (final controller in _dateControllers) {
-      controller?.dispose();
-    }
-    for (final node in _dateFocusNodes) {
-      node?.dispose();
+    // TextFields keep using their old controllers until the next layout.
+    // In particular, the Android IME can still be detaching during a page turn.
+    final oldControllers = <RichTextEditingController?>[
+      ..._controllers, ..._dateControllers,
+    ];
+    final oldNodes = <FocusNode?>[..._focusNodes, ..._dateFocusNodes];
+    if (oldControllers.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final controller in oldControllers) { controller?.dispose(); }
+        for (final node in oldNodes) { node?.dispose(); }
+      });
     }
     _controllers.clear();
     _focusNodes.clear();
@@ -440,6 +473,12 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
   }
 
   void _schedulePageReflow(int pageIndex) {
+    final visibleIndex = pageIndex - _currentPage;
+    if (visibleIndex >= 0 && visibleIndex < _controllers.length &&
+        !_controllers[visibleIndex].value.composing.isCollapsed &&
+        _controllers[visibleIndex].value.composing.isValid) {
+      return; // Wait for the soft keyboard to commit its current word.
+    }
     if (_restoring ||
         !_editable ||
         pageIndex < 0 ||
@@ -824,30 +863,14 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
 
   Future<void> _jumpToPage({int? initialPageIndex}) async {
     final initialPage = initialPageIndex ?? _currentPage;
-    final input = TextEditingController(text: '${initialPage + 1}');
-    final requested = await showDialog<int>(
+    final value = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: BookAndQuillColors.woodDark,
-        title: const Text('Jump to page'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly],
-          onSubmitted: (value) => Navigator.pop(context, int.tryParse(value)),
-          decoration: const InputDecoration(hintText: '1 or higher'),
-        ),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, int.tryParse(input.text)),
-            child: const Text('GO'),
-          ),
-        ],
+      builder: (context) => BookTextEntryDialog(
+        title: 'Jump to page', initialValue: '${initialPage + 1}',
+        label: '1 or higher', submitLabel: 'GO', numeric: true,
       ),
     );
-    input.dispose();
+    final requested = int.tryParse(value ?? '');
     if (requested == null || requested < 1 || !mounted) {
       return;
     }
@@ -1159,27 +1182,14 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
     if (!_editable) {
       return;
     }
-    final author = TextEditingController(text: _book.author);
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: BookAndQuillColors.woodDark,
-        title: const Text('Sign this book?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Text('Signing this book makes this copy read-only.'),
-            const SizedBox(height: 14),
-            TextField(controller: author, maxLength: 32, decoration: const InputDecoration(labelText: 'Author')),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-          TextButton(onPressed: () => Navigator.pop(context, author.text.trim()), child: const Text('SIGN')),
-        ],
+      builder: (context) => BookTextEntryDialog(
+        title: 'Sign this book?', initialValue: _book.author,
+        message: 'Signing this book makes this copy read-only.',
+        label: 'Author', submitLabel: 'SIGN', maxLength: 32,
       ),
     );
-    author.dispose();
     if (result == null || !mounted) {
       return;
     }
@@ -1344,6 +1354,7 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _obfuscationTimer?.cancel();
     _cancelControlHideTimers();
@@ -1455,6 +1466,29 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
             : _dirty
                 ? 'Unsaved changes'
                 : 'Autosaved';
+    if (AndroidPlatform.isAndroid) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(children: <Widget>[
+          IconButton(tooltip: 'Save and close book',
+            onPressed: _finish, icon: const Icon(Icons.arrow_back)),
+          Expanded(child: InkWell(
+            onTap: _renameBook,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+                Text(_titleController.text, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 16)),
+                Text(statusText, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: BookAndQuillColors.gold, fontSize: 10)),
+              ]),
+            ),
+          )),
+          GearButton(sounds: widget.sounds, onPressed: _openSettings),
+        ]),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
       child: Row(
@@ -1584,6 +1618,7 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
   }
 
   Widget _buildEditorWorkspace() {
+    if (AndroidPlatform.isAndroid) return _buildMobileWorkspace();
     if (_transparentMode) {
       return _buildTransparentBookWorkspace();
     }
@@ -1991,6 +2026,64 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
     );
   }
 
+  Widget _buildMobileWorkspace() {
+    return LayoutBuilder(builder: (context, constraints) {
+      final spreadFactor = _twoPage ? 1.75 : 1.0;
+      // Crop only the transparent atlas margins, never the text. The outer
+      // scroll view lets Android reveal the caret above the software keyboard.
+      final pageSize = math.min(700.0,
+        constraints.maxWidth / (spreadFactor - 0.20)).toDouble();
+      final toolsHeight = math.min(290.0,
+        math.max(0.0, (constraints.maxHeight - 56) * 0.65)).toDouble();
+      return Column(children: <Widget>[
+        Expanded(child: ClipRect(child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: SizedBox(
+            width: constraints.maxWidth, height: pageSize,
+            child: OverflowBox(
+              alignment: Alignment.center,
+              minWidth: pageSize * spreadFactor,
+              maxWidth: pageSize * spreadFactor,
+              minHeight: pageSize, maxHeight: pageSize,
+              child: SizedBox(width: pageSize * spreadFactor, height: pageSize,
+                child: _buildPages(fillAvailable: true)),
+            ),
+          ),
+        ))),
+        if (_mobileToolsOpen)
+          Container(
+            height: toolsHeight,
+            color: const Color(0xF21A1410),
+            child: Center(child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: <Widget>[
+                _buildActionBar(), _buildFormattingBar(),
+              ]),
+            )),
+          ),
+        SizedBox(height: 52, child: Row(children: <Widget>[
+          IconButton(tooltip: 'Previous page',
+            onPressed: _currentPage > 0 ? () => _turnPage(-1) : null,
+            icon: const Icon(Icons.chevron_left)),
+          Expanded(child: TextButton.icon(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              setState(() => _mobileToolsOpen = !_mobileToolsOpen);
+            },
+            icon: Icon(_mobileToolsOpen ? Icons.close : Icons.edit),
+            label: const Text('TOOLS'),
+          )),
+          TextButton(onPressed: _finish, child: const Text('DONE')),
+          IconButton(tooltip: 'Next page',
+            onPressed: !_book.signed ||
+                _currentPage + _visiblePageCount < _book.pages.length
+                ? () => _turnPage(1) : null,
+            icon: const Icon(Icons.chevron_right)),
+        ])),
+      ]);
+    });
+  }
+
   Widget _buildActionBar() {
     return SizedBox(
       width: 126,
@@ -2009,7 +2102,8 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
                   const SizedBox(height: 18),
                   PixelButton(label: 'EXPORT', width: 106, compact: true, sounds: widget.sounds, onPressed: _exportBook),
                   const SizedBox(height: 8),
-                  PixelButton(label: _twoPage ? '1 PAGE' : '2 PAGES', width: 106, compact: true, sounds: widget.sounds, onPressed: _toggleTwoPage),
+                  if (!AndroidPlatform.isAndroid || MediaQuery.sizeOf(context).width >= 700)
+                    PixelButton(label: _twoPage ? '1 PAGE' : '2 PAGES', width: 106, compact: true, sounds: widget.sounds, onPressed: _toggleTwoPage),
                   const SizedBox(height: 18),
                   PixelButton(label: 'INSERT', width: 106, compact: true, enabled: _editable, sounds: widget.sounds, onPressed: _insertPage),
                   const SizedBox(height: 8),
@@ -2205,10 +2299,18 @@ class _BookEditorScreenState extends State<BookEditorScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  const Text(
-                    'Select page or date text, then choose a color or modifier. Tab changes page alignment, Ctrl+0–9 selects a color, and Ctrl+D toggles the date.',
+                  if (AndroidPlatform.isAndroid) ...<Widget>[
+                    PixelButton(label: 'ALIGN', compact: true,
+                      enabled: _editable && !_editingDate,
+                      onPressed: () => _activeTextController?.cycleSelectedLineAlignment()),
+                    const SizedBox(height: 10),
+                  ],
+                  Text(
+                    AndroidPlatform.isAndroid
+                        ? 'Select page or date text, then open Tools to format it. Align cycles left, center and right.'
+                        : 'Select page or date text, then choose a color or modifier. Tab changes page alignment, Ctrl+0–9 selects a color, and Ctrl+D toggles the date.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFFAAA49A), fontSize: 11, height: 1.35),
+                    style: const TextStyle(color: Color(0xFFAAA49A), fontSize: 11, height: 1.35),
                   ),
                 ],
               ),

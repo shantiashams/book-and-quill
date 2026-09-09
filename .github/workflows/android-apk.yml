@@ -1,0 +1,100 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-apk.yml'
+      - 'lib/**'
+      - 'android/**'
+      - 'assets/imported/**'
+      - 'test/**'
+      - 'pubspec.*'
+      - 'tools/*android*.ps1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download project
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - name: Check uploaded assets
+        run: |
+          $required = @(
+            'assets/imported/textures/book_and_quil.png',
+            'assets/imported/fonts/minecraft_local_v2.ttf',
+            'assets/imported/fonts/minecraft_book_grid_v3.ttf'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Missing $path in GitHub. Run tools/prepare_android_github.ps1 locally, commit and push."
+            }
+          }
+
+      - name: Check Windows PowerShell 5.1 preparation
+        shell: powershell
+        run: ./tools/prepare_android_github.ps1
+
+      - name: Install Flutter on GitHub
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Configure GitHub Android SDK
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:ANDROID_HOME) { throw 'The runner has no Android SDK.' }
+          if (-not $env:JAVA_HOME_17_X64) { throw 'The runner has no Java 17.' }
+          $env:JAVA_HOME = $env:JAVA_HOME_17_X64
+          "JAVA_HOME=$env:JAVA_HOME" >> $env:GITHUB_ENV
+          "$env:JAVA_HOME/bin" >> $env:GITHUB_PATH
+          $env:PATH = "$env:JAVA_HOME/bin;$env:PATH"
+          flutter config --android-sdk "$env:ANDROID_HOME" --jdk-dir "$env:JAVA_HOME"
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter Android SDK configuration failed.' }
+          $sdkManager = Join-Path $env:ANDROID_HOME 'cmdline-tools/latest/bin/sdkmanager.bat'
+          if (-not (Test-Path $sdkManager)) {
+            $sdkManager = Get-ChildItem (Join-Path $env:ANDROID_HOME 'cmdline-tools') -Filter sdkmanager.bat -Recurse |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $sdkManager) { throw 'The runner has no Android command-line tools.' }
+          1..100 | ForEach-Object { 'y' } | & $sdkManager --licenses
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK license setup failed.' }
+
+      - name: Test and build APK
+        run: ./tools/build_android.ps1 -Mode debug
+
+      - name: Save downloadable APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Book-and-Quill-Android-test-${{ github.run_number }}
+          path: dist/*/android/*-android-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Show download instructions
+        run: |
+          @'
+          ## Android test APK
+          Download the artifact below and extract the APK onto your Android device.
+          This is a debug build for testing, not a signed public release.
+          No Android SDK is needed on your own PC.
+          '@ >> $env:GITHUB_STEP_SUMMARY

@@ -111,7 +111,7 @@ class _SliderTickState {
 }
 
 class GameSoundService {
-  final SoLoud _engine = SoLoud.instance;
+  late final SoLoud _engine = SoLoud.instance;
   final WindowsMediaSessionBridge _windowsMedia = WindowsMediaSessionBridge();
   final math.Random _random = math.Random();
   final Map<String, bool> _assetAvailability = <String, bool>{};
@@ -372,6 +372,43 @@ class GameSoundService {
   _MusicContext _musicContext = _MusicContext.overworld;
   bool _initialized = false;
   bool _disposed = false;
+  bool _androidForeground = true;
+  bool _resumeMusicOnForeground = false;
+
+  /// Android playback is foreground-only. Preserve a manually paused song,
+  /// and resume an interrupted song only when the user returns to the app.
+  void setAndroidForeground(bool foreground) {
+    if (_disposed || _androidForeground == foreground) return;
+    _androidForeground = foreground;
+    final handle = _musicHandle;
+    if (!foreground) {
+      _musicTimer?.cancel();
+      _musicTimer = null;
+      _musicGeneration++;
+      _musicStartPending = false;
+      _resumeMusicOnForeground = handle != null && !_musicPaused;
+      if (handle != null && _initialized) {
+        try {
+          _engine.setPause(handle, true);
+          _musicPaused = true;
+          _updateMusicPlayback(_engine.getPosition(handle));
+        } on Object { _resumeMusicOnForeground = false; }
+      }
+      return;
+    }
+    if (handle != null && _resumeMusicOnForeground && _canPlayMusic) {
+      try {
+        _engine.setPause(handle, false);
+        _musicPaused = false;
+        final position = _engine.getPosition(handle);
+        _updateMusicPlayback(position);
+        _scheduleMusicCompletion(position);
+      } on Object { unawaited(_stopMusic()); }
+    } else if (handle == null) {
+      _scheduleMusicIfNeeded(initial: true);
+    }
+    _resumeMusicOnForeground = false;
+  }
 
   double masterVolume = AppSettings.defaults.masterVolume;
   double pageTurnVolume = AppSettings.defaults.pageTurnVolume;
@@ -609,6 +646,7 @@ class GameSoundService {
   }
 
   void _scheduleMusicIfNeeded({bool initial = false}) {
+    if (!_androidForeground) return;
     if (!_canPlayMusic) {
       _musicTimer?.cancel();
       _musicTimer = null;
@@ -640,6 +678,7 @@ class GameSoundService {
 
   bool get _canPlayMusic =>
       !_disposed &&
+      _androidForeground &&
       masterVolume > 0 &&
       musicVolume > 0 &&
       musicFrequency != MusicFrequency.off;

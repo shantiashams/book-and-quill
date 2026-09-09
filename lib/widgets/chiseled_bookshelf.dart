@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/book_record.dart';
+import '../services/android_platform.dart';
 import '../theme/book_and_quill_theme.dart';
 import '../theme/book_appearance_palette.dart';
 
@@ -249,6 +250,9 @@ class _ShelfSlotState extends State<_ShelfSlot>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: widget.onPressed,
+            onLongPressStart: AndroidPlatform.isAndroid
+                ? (details) => widget.onSecondaryPressed(details.globalPosition)
+                : null,
             onSecondaryTapUp: (details) =>
                 widget.onSecondaryPressed(details.globalPosition),
             child: AnimatedScale(

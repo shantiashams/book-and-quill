@@ -7,6 +7,7 @@ import 'models/book_record.dart';
 import 'models/usage_stats.dart';
 import 'screens/library_screen.dart';
 import 'services/book_storage.dart';
+import 'services/android_platform.dart';
 import 'services/fullscreen_service.dart';
 import 'services/game_sound_service.dart';
 import 'theme/book_and_quill_theme.dart';
@@ -15,7 +16,7 @@ import 'widgets/music_toast.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final storage = BookStorage();
+  final storage = await BookStorage.open();
   final List<BookRecord?> initialSlots = await storage.loadSlots();
   final List<String> initialShelfNames = await storage.loadShelfNames();
   final AppSettings initialSettings = await storage.loadSettings();
@@ -60,7 +61,8 @@ class BookAndQuillApp extends StatefulWidget {
   State<BookAndQuillApp> createState() => _BookAndQuillAppState();
 }
 
-class _BookAndQuillAppState extends State<BookAndQuillApp> {
+class _BookAndQuillAppState extends State<BookAndQuillApp>
+    with WidgetsBindingObserver {
   final FullscreenService _fullscreenService = FullscreenService();
   final ValueNotifier<bool> _fullscreenState = ValueNotifier<bool>(false);
   final ValueNotifier<bool> _transparentState = ValueNotifier<bool>(false);
@@ -70,6 +72,7 @@ class _BookAndQuillAppState extends State<BookAndQuillApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
   }
 
@@ -80,6 +83,13 @@ class _BookAndQuillAppState extends State<BookAndQuillApp> {
       return true;
     }
     return false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (AndroidPlatform.isAndroid) {
+      widget.sounds.setAndroidForeground(state == AppLifecycleState.resumed);
+    }
   }
 
   Future<bool> _toggleFullscreen() async {
@@ -120,6 +130,7 @@ class _BookAndQuillAppState extends State<BookAndQuillApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     _fullscreenService.restoreWindow();
     _fullscreenState.dispose();
@@ -137,12 +148,26 @@ class _BookAndQuillAppState extends State<BookAndQuillApp> {
         return ValueListenableBuilder<bool>(
           valueListenable: _transparentState,
           child: child ?? const SizedBox.shrink(),
-          builder: (context, transparent, app) => Stack(
+          builder: (context, transparent, app) => AnimatedBuilder(
+            animation: Listenable.merge(<Listenable>[
+              widget.sounds.musicIslandEnabled,
+              widget.sounds.musicIslandAlwaysExpanded,
+            ]),
+            builder: (context, _) {
+              final mobile = AndroidPlatform.isAndroid;
+              final showMusic = !transparent &&
+                  (!mobile || MediaQuery.viewInsetsOf(context).bottom == 0);
+              final inset = mobile && showMusic && widget.sounds.musicIslandEnabled.value
+                  ? (widget.sounds.musicIslandAlwaysExpanded.value ? 188.0 : 56.0)
+                  : 0.0;
+              return Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              app!,
-              if (!transparent) MusicToastOverlay(sounds: widget.sounds),
+              Padding(padding: EdgeInsets.only(top: inset), child: app!),
+              if (showMusic) MusicToastOverlay(sounds: widget.sounds),
             ],
+              );
+            },
           ),
         );
       },

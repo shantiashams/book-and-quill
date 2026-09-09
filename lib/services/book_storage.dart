@@ -4,8 +4,13 @@ import 'dart:io';
 import '../models/app_settings.dart';
 import '../models/book_record.dart';
 import '../models/usage_stats.dart';
+import 'android_platform.dart';
 
 class BookStorage {
+  static Future<BookStorage> open() async => AndroidPlatform.isAndroid
+      ? BookStorage(dataDirectory: await AndroidPlatform.dataDirectory())
+      : BookStorage();
+
   BookStorage({Directory? dataDirectory})
       : _dataDirectory = dataDirectory ?? _defaultDataDirectory(),
         _legacyDataDirectory =

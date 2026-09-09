@@ -1,0 +1,6 @@
+# Copy to key.properties. Use your own values; never commit that file.
+# Use forward slashes on Windows, and keep the keystore outside the project.
+storeFile=C:/Users/YOUR_NAME/book-and-quill-upload.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=upload
+keyPassword=YOUR_KEY_PASSWORD

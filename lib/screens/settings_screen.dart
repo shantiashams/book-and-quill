@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../app_version.dart';
 import '../models/app_settings.dart';
 import '../services/game_sound_service.dart';
+import '../services/android_platform.dart';
 import '../theme/app_background.dart';
 import '../theme/book_and_quill_theme.dart';
 import '../widgets/pixel_button.dart';
@@ -275,7 +276,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: <Widget>[
         _SettingsRow(
           title: 'DEFAULT BOOK VIEW',
-          description: 'Used whenever a book is opened',
+          description: AndroidPlatform.isAndroid
+              ? 'Two pages on wide screens; one page on phones'
+              : 'Used whenever a book is opened',
           control: PixelButton(
             label: _settings.openBooksInTwoPageMode ? '2 PAGES' : '1 PAGE',
             width: 132,
@@ -285,6 +288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 22),
+        if (!AndroidPlatform.isAndroid) ...<Widget>[
         _SettingsRow(
           title: 'BOOK SIZE',
           description: '$bookSizePercent%  •  Updates when you return to a book',
@@ -319,9 +323,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 22),
+        ],
         _SettingsRow(
           title: 'PAGE DATE',
-          description: 'Format used when DATE or Ctrl+D adds a stamp',
+          description: AndroidPlatform.isAndroid
+              ? 'Format used by the Date button in Tools'
+              : 'Format used when DATE or Ctrl+D adds a stamp',
           control: PixelButton(
             label: _settings.pageDateFormat.label,
             width: 148,
@@ -343,6 +350,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 22),
+        if (!AndroidPlatform.isAndroid)
         _SettingsRow(
           title: 'FULLSCREEN',
           description: 'F11 toggles fullscreen anywhere',
@@ -447,7 +455,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 22),
         _SettingsRow(
           title: 'MUSIC ISLAND',
-          description: 'Expand on hover, keep it always big, or hide it',
+          description: AndroidPlatform.isAndroid
+              ? 'Open with the arrow, keep it always big, or hide it'
+              : 'Expand on hover, keep it always big, or hide it',
           control: PixelButton(
             label: !_settings.musicIsland
                 ? 'OFF'
@@ -560,6 +570,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final index = values.indexOf(_section);
     final previous = values[(index - 1 + values.length) % values.length];
     final next = values[(index + 1) % values.length];
+    if (AndroidPlatform.isAndroid) {
+      Widget label(_SettingsSection section, bool active, int direction) =>
+        Expanded(flex: active ? 2 : 1, child: InkWell(
+          onTap: active ? null : () => _showSection(section, direction: direction),
+          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+            child: FittedBox(fit: BoxFit.scaleDown,
+              child: Text(section.label, style: TextStyle(
+                color: active ? Colors.white : const Color(0xFF91897C),
+                fontSize: active ? 22 : 14))),
+          ),
+        ));
+      return Row(children: <Widget>[
+        label(previous, false, -1), label(_section, true, 0), label(next, false, 1),
+      ]);
+    }
     return SizedBox(
       height: 46,
       child: Row(
@@ -634,11 +659,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Center(
                     child: SingleChildScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(AndroidPlatform.isAndroid ? 12 : 24),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 760),
                         child: Container(
-                          padding: const EdgeInsets.fromLTRB(30, 24, 30, 25),
+                          padding: AndroidPlatform.isAndroid
+                              ? const EdgeInsets.fromLTRB(14, 16, 14, 20)
+                              : const EdgeInsets.fromLTRB(30, 24, 30, 25),
                           decoration: BoxDecoration(
                             color: const Color(0xEB17110D),
                             border: Border.all(
@@ -682,8 +709,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 31),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 16,
+                                runSpacing: 10,
                                 children: <Widget>[
                                   PixelButton(
                                     label: 'RESET',
@@ -691,7 +720,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     sounds: widget.sounds,
                                     onPressed: () => _confirmResetDefaults(),
                                   ),
-                                  const SizedBox(width: 16),
                                   PixelButton(
                                     label: 'DONE',
                                     width: 136,
@@ -782,7 +810,9 @@ class _MinecraftSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 270,
+      width: AndroidPlatform.isAndroid
+          ? (MediaQuery.sizeOf(context).width - 64).clamp(120.0, 270.0).toDouble()
+          : 270,
       child: Listener(
         behavior: HitTestBehavior.opaque,
         onPointerSignal: onPointerSignal,

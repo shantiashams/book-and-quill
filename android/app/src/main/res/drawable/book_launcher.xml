@@ -1,0 +1,6 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape android:shape="rectangle"><solid android:color="#21170F" /></shape></item>
+    <item android:left="12dp" android:top="12dp" android:right="12dp" android:bottom="12dp">
+        <bitmap android:src="@drawable/book_and_quil" android:gravity="fill" android:filter="false" />
+    </item>
+</layer-list>

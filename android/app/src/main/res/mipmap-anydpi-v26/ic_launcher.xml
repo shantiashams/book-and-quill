@@ -1,0 +1,8 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/book_launcher_background" />
+    <foreground>
+        <inset android:inset="22%">
+            <bitmap android:src="@drawable/book_and_quil" android:gravity="fill" android:filter="false" />
+        </inset>
+    </foreground>
+</adaptive-icon>

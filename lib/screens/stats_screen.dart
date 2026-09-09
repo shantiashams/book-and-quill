@@ -7,6 +7,7 @@ import '../models/app_settings.dart';
 import '../models/book_record.dart';
 import '../models/usage_stats.dart';
 import '../services/book_storage.dart';
+import '../services/android_platform.dart';
 import '../services/game_sound_service.dart';
 import '../theme/app_background.dart';
 import '../theme/book_and_quill_theme.dart';
@@ -55,7 +56,17 @@ class StatsScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(22),
                   child: Column(
                     children: <Widget>[
-                      SizedBox(
+                      if (AndroidPlatform.isAndroid)
+                        Row(children: <Widget>[
+                          IconButton(tooltip: 'Back',
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.arrow_back)),
+                          const Expanded(child: Text('STATISTICS',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 20))),
+                          const SizedBox(width: 48),
+                        ])
+                      else SizedBox(
                         width: double.infinity,
                         height: 44,
                         child: Stack(
