@@ -25,7 +25,7 @@ try {
             }
         }
     }
-    & flutter test
+    & flutter test --reporter expanded
     if ($LASTEXITCODE -ne 0) { throw 'Android regression checks failed; no APK was packaged.' }
     $target = if ($Bundle) { 'appbundle' } else { 'apk' }
     & flutter build $target "--$Mode"

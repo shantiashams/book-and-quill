@@ -25,7 +25,7 @@ try {
     & git diff --cached --quiet
     $diffResult = $LASTEXITCODE
     if ($diffResult -eq 1) {
-        & git commit -m 'Fix Android cloud build preparation - v3.4.2'
+        & git commit -m 'Fix Flutter widget test setup - v3.4.3'
         if ($LASTEXITCODE -ne 0) { throw 'Commit failed. No pull or push was attempted.' }
     } elseif ($diffResult -ne 0) {
         throw 'Could not inspect staged changes. No pull or push was attempted.'

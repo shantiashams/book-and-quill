@@ -9,8 +9,7 @@ import 'package:book_and_quill/widgets/page_sheet.dart';
 import 'package:book_and_quill/widgets/pixel_button.dart';
 
 void main() {
-  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.windows);
-  tearDown(() => debugDefaultTargetPlatformOverride = null);
+  final windowsVariant = TargetPlatformVariant.only(TargetPlatform.windows);
 
   testWidgets('pixel button renders and responds', (tester) async {
     var pressed = false;
@@ -18,7 +17,7 @@ void main() {
       PixelButton(label: 'TEST', onPressed: () => pressed = true))));
     await tester.tap(find.text('TEST'));
     expect(pressed, isTrue);
-  });
+  }, variant: windowsVariant);
 
   testWidgets('desktop pages retain writing and interactive controls when scaled', (tester) async {
     final controller = RichTextEditingController(
@@ -30,7 +29,7 @@ void main() {
     var indicator = false;
     var previous = false;
     var next = false;
-    Widget pageAt(double size) => MaterialApp(home: Center(child: SizedBox.square(
+    Widget pageAt(double size) => MaterialApp(home: Scaffold(body: Center(child: SizedBox.square(
       dimension: size, child: PageSheet(controller: controller,
         focusNode: focus, pageNumber: 2, totalPages: 4, readOnly: false,
         onFocused: () {}, dateController: null, dateFocusNode: null,
@@ -39,7 +38,7 @@ void main() {
         onPreviousPage: () => previous = true,
         onNextPage: () => next = true,
       ),
-    )));
+    ))));
     for (final size in <double>[600, 300]) {
       await tester.pumpWidget(pageAt(size));
       final field = tester.widget<TextField>(find.byType(TextField));
@@ -54,7 +53,7 @@ void main() {
     }
     expect(indicator && previous && next, isTrue);
     await tester.pumpWidget(const SizedBox.shrink());
-  });
+  }, variant: windowsVariant);
 
   testWidgets('six shelf hit areas match the 16 by 16 texture and never overlap', (tester) async {
     await tester.pumpWidget(MaterialApp(home: Align(alignment: Alignment.topLeft,
@@ -73,7 +72,7 @@ void main() {
       rectangles.add(rect);
     }
     await tester.pumpWidget(const SizedBox.shrink());
-  });
+  }, variant: windowsVariant);
 
   testWidgets('favorite glint and labels do not intercept book taps', (tester) async {
     final pressed = <int>[];
@@ -89,5 +88,5 @@ void main() {
     }
     expect(pressed, <int>[0, 1, 2, 3, 4, 5]);
     await tester.pumpWidget(const SizedBox.shrink());
-  });
+  }, variant: windowsVariant);
 }

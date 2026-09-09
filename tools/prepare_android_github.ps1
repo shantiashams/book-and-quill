@@ -51,8 +51,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Could not stage asset: $relative" }
     }
     Write-Host "Staged the Android build update and $($assets.Count) app assets." -ForegroundColor Green
-    & git diff --cached --stat
-    Write-Host 'Next: git commit -m "Fix Android cloud build preparation - v3.4.2"'
+    & git --no-pager diff --cached --stat
+    Write-Host 'Next: git commit -m "Fix Flutter widget test setup - v3.4.3"'
     Write-Host 'Then: git pull --no-rebase --no-edit origin main'
     Write-Host 'If that succeeds: git push origin main'
     Write-Host 'Download the APK from GitHub > Actions > Android APK > successful run > Artifacts.'

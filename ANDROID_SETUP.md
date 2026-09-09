@@ -1,4 +1,4 @@
-# Book and Quill 3.4.2 — Android
+# Book and Quill 3.4.3 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -34,7 +34,7 @@ it cannot build this app by itself and is not used by this workflow.
    script, commit, then `git pull --no-rebase --no-edit origin main` and finally
    `git push origin main`, stopping at any error.
 
-   Version 3.4.2 fixes Windows PowerShell 5.1 treating the JSON manifest array
+   Version 3.4.2 fixed Windows PowerShell 5.1 treating the JSON manifest array
    as a single nested pipeline object. Manifest entries are now enumerated
    explicitly and checked as individual path strings before any staging.
 
@@ -70,6 +70,22 @@ The workflow and update archive were checked locally. A GitHub Actions run,
 Flutter tests and APK compilation could not be executed in the preparation
 environment. The first pushed run supplies those results.
 
+## 3.4.3 build-test fix
+
+The first GitHub build completed SDK setup and dependency resolution, then
+reported 13 passing tests and 8 failing widget tests. The supplied log exposed
+an incorrectly scoped platform override and a page fixture missing a Material
+ancestor. Widget tests now use Flutter's TargetPlatformVariant lifecycle;
+Android service tests keep their overrides in a separate unit-test group.
+The page and dialog fixtures use Scaffold as they do in the application.
+All existing behavioral assertions and the build's test gate remain enabled.
+Test output now uses the expanded reporter to show each failure in full.
+The preparation file list prints without Git's interactive pager.
+
+These corrections were inspected locally. Flutter is unavailable in the
+preparation environment, so the next GitHub run must confirm the tests and
+perform APK compilation; this source update does not contain an APK.
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -90,7 +106,7 @@ environment. The first pushed run supplies those results.
 3. The test APK is written to:
 
    ```text
-   dist\3.4.2\android\Book-and-Quill-3.4.2-android-debug.apk
+   dist\3.4.3\android\Book-and-Quill-3.4.3-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:
