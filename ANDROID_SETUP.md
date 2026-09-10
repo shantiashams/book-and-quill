@@ -1,4 +1,4 @@
-# Book and Quill 3.4.4 — Android
+# Book and Quill 3.4.5 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -97,6 +97,23 @@ Application lifecycle/audio behavior is unchanged. All 21 tests remain enabled.
 The fixes and archive were checked locally; the next GitHub run must execute
 the tests and compile the APK because Flutter is unavailable locally.
 
+## 3.4.5 Windows Android build fix
+
+The supplied 3.4.4 GitHub log confirms all 21 tests passed. APK compilation
+then failed in file_selector_android because Kotlin's incremental cache tried
+to calculate relative paths between dependencies on C: and the checkout on D:.
+
+The workflow now sets PUB_CACHE beside the checkout, on the same drive, before
+package resolution and compilation. Setup also merges kotlin.incremental=false
+into android/gradle.properties on Windows, including existing Android scaffolds.
+Other Gradle settings are preserved. This can make repeated Kotlin compilations
+slower, but avoids the failing incremental path cache. Tests and app behavior
+are unchanged. GitHub must run the updated build to confirm APK compilation;
+this patch contains source and tools, not a compiled APK.
+
+References: [Dart PUB_CACHE](https://dart.dev/tools/pub/environment-variables)
+and [Kotlin incremental compilation](https://kotlinlang.org/docs/gradle-compilation-and-caches.html).
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -117,7 +134,7 @@ the tests and compile the APK because Flutter is unavailable locally.
 3. The test APK is written to:
 
    ```text
-   dist\3.4.4\android\Book-and-Quill-3.4.4-android-debug.apk
+   dist\3.4.5\android\Book-and-Quill-3.4.5-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:

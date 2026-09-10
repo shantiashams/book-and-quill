@@ -38,6 +38,21 @@ try {
         }
     }
 
+    # Kotlin's Windows incremental cache can fail when plugin sources and
+    # the project use different drive roots. Compile Kotlin without that cache.
+    # Merge this property after scaffold creation, preserving other settings.
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        $propertiesFile = Join-Path $androidRoot 'gradle.properties'
+        $properties = if (Test-Path $propertiesFile) { [IO.File]::ReadAllText($propertiesFile) } else { '' }
+        $incrementalPattern = [regex]'(?m)^[ \t]*kotlin\.incremental[ \t]*[=:][^\r\n]*'
+        if ($incrementalPattern.IsMatch($properties)) {
+            $properties = $incrementalPattern.Replace($properties, 'kotlin.incremental=false')
+        } else {
+            $properties = $properties.TrimEnd() + "`nkotlin.incremental=false`n"
+        }
+        [IO.File]::WriteAllText($propertiesFile, $properties, $utf8)
+    }
+
     $buildFile = Join-Path $androidRoot 'app/build.gradle.kts'
     if (-not (Test-Path $buildFile)) { throw 'Android app/build.gradle.kts is missing. Run setup with a current stable Flutter SDK.' }
     $gradle = [IO.File]::ReadAllText($buildFile)
