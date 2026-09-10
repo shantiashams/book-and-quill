@@ -1,4 +1,4 @@
-# Book and Quill 3.4.7 — Android
+# Book and Quill 3.4.8 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -159,6 +159,24 @@ book and optimized profile APK workflow are unchanged. The next artifact is
 Book-and-Quill-3.4.7-android-profile.apk. Source and archive checks ran locally;
 Flutter tests and APK compilation must run on GitHub.
 
+## 3.4.8 single progress bar and full-screen background
+
+The Android island shows its compact progress strip only when collapsed.
+Expanded and always-big modes use the single seek bar under the track controls.
+The existing widget test checks that exactly one progress bar exists in each
+state, keeping the animation timing and hit-target checks from 3.4.7.
+
+The app now draws behind transparent Android status/navigation bars. Island
+clearance is added to route SafeArea padding rather than padding the entire
+Navigator, so the chosen background extends to the top edge instead of leaving
+a black strip. The clock, battery icons and gesture navigation remain visible;
+interactive controls still respect the system safe areas. Background selection
+and opacity continue to apply normally.
+
+The next optimized test artifact is Book-and-Quill-3.4.8-android-profile.apk.
+Source and archive checks ran locally. Flutter tests and APK compilation must
+run on GitHub; appearance under system bars must be checked on the phone.
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -179,7 +197,7 @@ Flutter tests and APK compilation must run on GitHub.
 3. The test APK is written to:
 
    ```text
-   dist\3.4.7\android\Book-and-Quill-3.4.7-android-debug.apk
+   dist\3.4.8\android\Book-and-Quill-3.4.8-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:

@@ -270,10 +270,13 @@ class _MusicIslandState extends State<_MusicIsland> {
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
                               SizedBox(height: 44, child: Row(children: <Widget>[
-                                Expanded(child: Center(child: SizedBox(height: 24,
-                                  child: _CollapsedMusicController(
-                                    sounds: widget.sounds, playback: playback,
-                                    controlsEnabled: controls)))),
+                                if (!_expanded)
+                                  Expanded(child: Center(child: SizedBox(height: 24,
+                                    child: _CollapsedMusicController(
+                                      sounds: widget.sounds, playback: playback,
+                                      controlsEnabled: controls))))
+                                else
+                                  const Spacer(),
                                 if (!widget.sounds.musicIslandAlwaysExpanded.value)
                                   IconButton(
                                     tooltip: _expanded ? 'Close music controls' : 'Open music controls',
@@ -320,6 +323,7 @@ class _CollapsedMusicController extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
       child: _MusicProgressBar(
+        key: const ValueKey<String>('music-seek-bar'),
         progress: playback?.progress ?? 0,
         paused: playback?.isPaused ?? false,
         enabled: controlsEnabled &&
@@ -447,6 +451,7 @@ class _ExpandedMusicController extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           _MusicProgressBar(
+            key: const ValueKey<String>('music-seek-bar'),
             progress: playback?.progress ?? 0,
             paused: playback?.isPaused ?? false,
             enabled: controlsEnabled &&
@@ -535,6 +540,7 @@ class _MusicCover extends StatelessWidget {
 
 class _MusicProgressBar extends StatefulWidget {
   const _MusicProgressBar({
+    super.key,
     required this.progress,
     required this.paused,
     required this.enabled,

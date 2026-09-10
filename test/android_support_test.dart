@@ -246,6 +246,7 @@ void main() {
     expect(tester.takeException(), isNull);
     final island = find.byKey(const ValueKey<String>('touch-music-island'));
     expect(tester.getSize(island), const Size(220, 44));
+    expect(find.byKey(const ValueKey<String>('music-seek-bar')), findsOneWidget);
     expect(tester.getTopLeft(island).dy, 28);
     expect(Overlay.maybeOf(tester.element(find.byTooltip('Open music controls'))), isNotNull);
     await tester.tap(find.text('PAGE CONTENT'));
@@ -260,6 +261,7 @@ void main() {
     sounds.musicControlsEnabled.value = true;
     await tester.pump();
     expect(find.text('NO MUSIC PLAYING'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('music-seek-bar')), findsOneWidget);
     expect(find.text('MUSIC IS OFF'), findsNothing);
     final closeButton = find.byTooltip('Close music controls');
     expect(closeButton.hitTestable(), findsOneWidget);
@@ -270,11 +272,13 @@ void main() {
     expect(find.text('NO MUSIC PLAYING'), findsNothing);
     expect(find.byTooltip('Open music controls').hitTestable(), findsOneWidget);
     expect(tester.getSize(island), const Size(220, 44));
+    expect(find.byKey(const ValueKey<String>('music-seek-bar')), findsOneWidget);
     sounds.musicIslandAlwaysExpanded.value = true;
     // First lay out the new state to start AnimatedSize, then advance it.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('NO MUSIC PLAYING'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('music-seek-bar')), findsOneWidget);
     expect(find.byTooltip('Close music controls'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

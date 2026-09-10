@@ -15,6 +15,9 @@ import 'widgets/music_toast.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (AndroidPlatform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
 
   final storage = await BookStorage.open();
   final List<BookRecord?> initialSlots = await storage.loadSlots();
@@ -160,14 +163,35 @@ class _BookAndQuillAppState extends State<BookAndQuillApp>
               final inset = mobile && showMusic && widget.sounds.musicIslandEnabled.value
                   ? (widget.sounds.musicIslandAlwaysExpanded.value ? 188.0 : 56.0)
                   : 0.0;
-              return Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              Padding(padding: EdgeInsets.only(top: inset),
-                child: RepaintBoundary(child: app!)),
-              if (showMusic) MusicToastOverlay(sounds: widget.sounds),
-            ],
+              final media = MediaQuery.of(context);
+              final workspace = Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  // SafeArea moves controls below the island; the Navigator
+                  // and every route background still paint the entire screen.
+                  MediaQuery(
+                    data: media.copyWith(
+                      padding: media.padding.copyWith(top: media.padding.top + inset),
+                    ),
+                    child: RepaintBoundary(child: app!),
+                  ),
+                  if (showMusic) MusicToastOverlay(sounds: widget.sounds),
+                ],
               );
+              return mobile
+                  ? AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: const SystemUiOverlayStyle(
+                        statusBarColor: Colors.transparent,
+                        statusBarIconBrightness: Brightness.light,
+                        systemStatusBarContrastEnforced: false,
+                        systemNavigationBarColor: Colors.transparent,
+                        systemNavigationBarDividerColor: Colors.transparent,
+                        systemNavigationBarIconBrightness: Brightness.light,
+                        systemNavigationBarContrastEnforced: false,
+                      ),
+                      child: workspace,
+                    )
+                  : workspace;
             },
           ),
         );
