@@ -251,6 +251,8 @@ void main() {
     await tester.tap(find.text('PAGE CONTENT'));
     expect(pageTaps, 1); // The full-screen host must not intercept page taps.
     await tester.tap(find.byTooltip('Open music controls'));
+    // First lay out the new state to start AnimatedSize, then advance it.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     // The silent fixture has no audio engine and starts with controls off.
     expect(find.text('MUSIC IS OFF'), findsOneWidget);
@@ -259,10 +261,18 @@ void main() {
     await tester.pump();
     expect(find.text('NO MUSIC PLAYING'), findsOneWidget);
     expect(find.text('MUSIC IS OFF'), findsNothing);
-    await tester.tap(find.byTooltip('Close music controls'));
+    final closeButton = find.byTooltip('Close music controls');
+    expect(closeButton.hitTestable(), findsOneWidget);
+    await tester.tap(closeButton);
+    // First lay out the new state to start AnimatedSize, then advance it.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('NO MUSIC PLAYING'), findsNothing);
+    expect(find.byTooltip('Open music controls').hitTestable(), findsOneWidget);
+    expect(tester.getSize(island), const Size(220, 44));
     sounds.musicIslandAlwaysExpanded.value = true;
+    // First lay out the new state to start AnimatedSize, then advance it.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('NO MUSIC PLAYING'), findsOneWidget);
     expect(find.byTooltip('Close music controls'), findsNothing);

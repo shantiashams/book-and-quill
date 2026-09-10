@@ -1,4 +1,4 @@
-# Book and Quill 3.4.6 — Android
+# Book and Quill 3.4.7 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -145,6 +145,20 @@ Android device are unavailable here, so the next Actions run and phone test
 must confirm the regression checks and animation performance.
 See [Flutter build modes](https://docs.flutter.dev/testing/build-modes).
 
+## 3.4.7 animation test timing
+
+The 3.4.6 log passed 20 tests. The music test's Close tap missed because the
+first pump started AnimatedSize at its new timestamp without advancing the
+animation. The test now pumps the changed layout first, then advances 200 ms
+past the 120 ms animation before interacting. Opening, closing and always-big
+use this sequence. It checks that Close and the restored Open button are hit
+testable, and that collapse restores the 220 x 44 size.
+
+App behavior and all 21 tests remain intact. The existing overlay fix, larger
+book and optimized profile APK workflow are unchanged. The next artifact is
+Book-and-Quill-3.4.7-android-profile.apk. Source and archive checks ran locally;
+Flutter tests and APK compilation must run on GitHub.
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -165,7 +179,7 @@ See [Flutter build modes](https://docs.flutter.dev/testing/build-modes).
 3. The test APK is written to:
 
    ```text
-   dist\3.4.6\android\Book-and-Quill-3.4.6-android-debug.apk
+   dist\3.4.7\android\Book-and-Quill-3.4.7-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:
