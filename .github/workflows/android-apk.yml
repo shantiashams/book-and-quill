@@ -85,13 +85,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Android SDK license setup failed.' }
 
       - name: Test and build APK
-        run: ./tools/build_android.ps1 -Mode debug
+        run: ./tools/build_android.ps1 -Mode profile
 
       - name: Save downloadable APK
         uses: actions/upload-artifact@v7
         with:
           name: Book-and-Quill-Android-test-${{ github.run_number }}
-          path: dist/*/android/*-android-debug.apk
+          path: dist/*/android/*-android-profile.apk
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -101,6 +101,6 @@ jobs:
           @'
           ## Android test APK
           Download the artifact below and extract the APK onto your Android device.
-          This is a debug build for testing, not a signed public release.
+          This is an optimized profile build for phone testing, not a public release.
           No Android SDK is needed on your own PC.
           '@ >> $env:GITHUB_STEP_SUMMARY

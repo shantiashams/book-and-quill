@@ -1,4 +1,4 @@
-# Book and Quill 3.4.5 — Android
+# Book and Quill 3.4.6 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -59,12 +59,12 @@ step and send its first error. No APK is uploaded for a failed build.
 Artifacts expire after 14 days; rerun the workflow to create another.
 The workflow does not publish a GitHub Release or upload to Google Play.
 
-This produces a **debug APK for testing**. Hosted machines can generate a
+This produces an **optimized profile APK for testing on a physical phone**. Hosted machines can generate a
 new debug signing key on each run, so a later test APK may require uninstalling
 the earlier copy. Export any writing first; uninstalling deletes app data.
 Use your own consistent release key before distributing updatable releases.
 Release signing instructions are below; the cloud job deliberately only builds
-debug APKs and does not request your release credentials.
+profile APKs and does not request your release credentials.
 
 The workflow and update archive were checked locally. A GitHub Actions run,
 Flutter tests and APK compilation could not be executed in the preparation
@@ -114,6 +114,37 @@ this patch contains source and tools, not a compiled APK.
 References: [Dart PUB_CACHE](https://dart.dev/tools/pub/environment-variables)
 and [Kotlin incremental compilation](https://kotlinlang.org/docs/gradle-compilation-and-caches.html).
 
+## 3.4.6 phone interface and performance
+
+The music island now owns an Overlay above Navigator, so its tooltips have
+an Overlay ancestor in the actual app layout. The regression fixture now uses
+MaterialApp.builder, checks the collapsed size and status-bar offset, and
+checks that taps outside the island still reach the page below it.
+
+On Android the collapsed island is a centered 220 x 44 pill (narrower if needed),
+with a vertically centered progress strip and a 120 ms expansion animation.
+Shelf changes take 180 ms on Android. Separate repaint boundaries isolate the
+music controller and book from surrounding repaint work.
+
+The book fits its measured visible wooden frame with four logical pixels of
+space on each side. It is about 3% larger on a typical phone; larger tablet
+pages can grow beyond the previous 700-unit cap. Text, line limits, date
+placement and aspect ratio are preserved. The page still scrolls above the
+keyboard. Substantially larger phone pages would require horizontal scrolling
+or cropping the visible book.
+
+GitHub now builds profile mode, because debug-mode animation speed is not
+representative of optimized Flutter performance. The artifact contains
+Book-and-Quill-3.4.6-android-profile.apk. The normal Flutter widget tests still
+run with assertions before packaging. Local builds can select -Mode debug,
+-Mode profile, or a properly signed -Mode release. Profile builds are test
+builds and still use a temporary debug signing key on the hosted runner.
+
+All changes were inspected and the archive verified locally. Flutter and an
+Android device are unavailable here, so the next Actions run and phone test
+must confirm the regression checks and animation performance.
+See [Flutter build modes](https://docs.flutter.dev/testing/build-modes).
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -134,7 +165,7 @@ and [Kotlin incremental compilation](https://kotlinlang.org/docs/gradle-compilat
 3. The test APK is written to:
 
    ```text
-   dist\3.4.5\android\Book-and-Quill-3.4.5-android-debug.apk
+   dist\3.4.6\android\Book-and-Quill-3.4.6-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:

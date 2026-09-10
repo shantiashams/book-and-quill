@@ -170,6 +170,10 @@ void main() {
     ));
     await tester.pumpWidget(editor());
     expect(find.byType(PageSheet), findsOneWidget);
+    // The visible atlas frame fills the phone width, with four pixels per side.
+    final pageRect = tester.getRect(find.byType(PageSheet));
+    expect(pageRect.width * 73 / 96, closeTo(352, 0.1));
+    expect(pageRect.left + pageRect.width * 5 / 48, closeTo(4, 0.1));
     await tester.enterText(find.byType(TextField), 'Typing on Android');
     tester.view.viewInsets = const FakeViewPadding(bottom: 320);
     await tester.pump();
@@ -225,9 +229,27 @@ void main() {
   testWidgets('music island opens and closes with touch and always-big is honored', (tester) async {
     final sounds = _SilentSounds();
     addTearDown(sounds.dispose);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Stack(
-      children: <Widget>[MusicToastOverlay(sounds: sounds)],
-    ))));
+    var pageTaps = 0;
+    // Match production: the island is above Navigator, in MaterialApp.builder.
+    // A Scaffold-only fixture hides the missing-Overlay regression.
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(padding: const EdgeInsets.only(top: 24)),
+        child: Stack(fit: StackFit.expand, children: <Widget>[
+          child!, MusicToastOverlay(sounds: sounds),
+        ]),
+      ),
+      home: Scaffold(body: Center(child: TextButton(
+        onPressed: () { pageTaps++; }, child: const Text('PAGE CONTENT'),
+      ))),
+    ));
+    expect(tester.takeException(), isNull);
+    final island = find.byKey(const ValueKey<String>('touch-music-island'));
+    expect(tester.getSize(island), const Size(220, 44));
+    expect(tester.getTopLeft(island).dy, 28);
+    expect(Overlay.maybeOf(tester.element(find.byTooltip('Open music controls'))), isNotNull);
+    await tester.tap(find.text('PAGE CONTENT'));
+    expect(pageTaps, 1); // The full-screen host must not intercept page taps.
     await tester.tap(find.byTooltip('Open music controls'));
     await tester.pump(const Duration(milliseconds: 200));
     // The silent fixture has no audio engine and starts with controls off.

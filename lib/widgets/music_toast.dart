@@ -8,6 +8,8 @@ import '../services/game_sound_service.dart';
 import '../services/android_platform.dart';
 import '../theme/book_and_quill_theme.dart';
 
+/// Own an overlay because this controller sits above the app Navigator.
+/// Icon-button tooltips need an Overlay ancestor even in the collapsed state.
 class MusicToastOverlay extends StatefulWidget {
   const MusicToastOverlay({required this.sounds, super.key});
 
@@ -18,6 +20,45 @@ class MusicToastOverlay extends StatefulWidget {
 }
 
 class _MusicToastOverlayState extends State<MusicToastOverlay> {
+  late final OverlayEntry _entry;
+
+  @override
+  void initState() {
+    super.initState();
+    _entry = OverlayEntry(builder: (_) => _MusicIsland(sounds: widget.sounds));
+  }
+
+  @override
+  void didUpdateWidget(covariant MusicToastOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sounds != widget.sounds) _entry.markNeedsBuild();
+  }
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: RepaintBoundary(
+      child: Overlay(initialEntries: <OverlayEntry>[_entry]),
+    ),
+  );
+
+  @override
+  void dispose() {
+    _entry.remove();
+    _entry.dispose();
+    super.dispose();
+  }
+}
+
+class _MusicIsland extends StatefulWidget {
+  const _MusicIsland({required this.sounds});
+
+  final GameSoundService sounds;
+
+  @override
+  State<_MusicIsland> createState() => _MusicIslandState();
+}
+
+class _MusicIslandState extends State<_MusicIsland> {
   bool _hovering = false;
   bool _autoExpanded = false;
   bool _touchExpanded = false;
@@ -36,7 +77,7 @@ class _MusicToastOverlayState extends State<MusicToastOverlay> {
   }
 
   @override
-  void didUpdateWidget(covariant MusicToastOverlay oldWidget) {
+  void didUpdateWidget(covariant _MusicIsland oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.sounds == widget.sounds) {
       return;
@@ -199,50 +240,58 @@ class _MusicToastOverlayState extends State<MusicToastOverlay> {
   }
 
   Widget _buildTouchIsland(BuildContext context) {
+    final width = math.min(400.0, MediaQuery.sizeOf(context).width - 24).toDouble();
     return Positioned(left: 12, right: 12,
-      top: MediaQuery.paddingOf(context).top,
+      top: MediaQuery.paddingOf(context).top + 4,
       child: ValueListenableBuilder<bool>(
         valueListenable: widget.sounds.musicIslandEnabled,
         builder: (context, enabled, _) {
           if (!enabled) return const SizedBox.shrink();
           return Align(alignment: Alignment.topCenter,
-            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 400),
+            child: RepaintBoundary(
               child: Material(color: const Color(0xF51B140B),
                 shape: RoundedRectangleBorder(
                   side: const BorderSide(color: BookAndQuillColors.gold, width: 2),
                   borderRadius: BorderRadius.circular(12)),
                 clipBehavior: Clip.antiAlias,
-                child: AnimatedSize(duration: const Duration(milliseconds: 180),
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutCubic,
                   alignment: Alignment.topCenter,
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: widget.sounds.musicControlsEnabled,
-                    builder: (context, controls, _) =>
-                      ValueListenableBuilder<MusicPlaybackInfo?>(
-                        valueListenable: widget.sounds.musicPlayback,
-                        builder: (context, playback, _) => Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            SizedBox(height: 48, child: Row(children: <Widget>[
-                              Expanded(child: _CollapsedMusicController(
-                                sounds: widget.sounds, playback: playback,
-                                controlsEnabled: controls)),
-                              if (!widget.sounds.musicIslandAlwaysExpanded.value)
-                                IconButton(
-                                  tooltip: _expanded ? 'Close music controls' : 'Open music controls',
-                                  onPressed: () => setState(() {
-                                    final wasExpanded = _expanded;
-                                    _autoExpanded = false;
-                                    _touchExpanded = !wasExpanded;
-                                  }),
-                                  icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                                ),
-                            ])),
-                            if (_expanded) SizedBox(height: 132,
-                              child: _ExpandedMusicController(sounds: widget.sounds,
-                                playback: playback, controlsEnabled: controls)),
-                          ],
+                  child: SizedBox(
+                    key: const ValueKey<String>('touch-music-island'),
+                    width: _expanded ? width : math.min(220.0, width).toDouble(),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: widget.sounds.musicControlsEnabled,
+                      builder: (context, controls, _) =>
+                        ValueListenableBuilder<MusicPlaybackInfo?>(
+                          valueListenable: widget.sounds.musicPlayback,
+                          builder: (context, playback, _) => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              SizedBox(height: 44, child: Row(children: <Widget>[
+                                Expanded(child: Center(child: SizedBox(height: 24,
+                                  child: _CollapsedMusicController(
+                                    sounds: widget.sounds, playback: playback,
+                                    controlsEnabled: controls)))),
+                                if (!widget.sounds.musicIslandAlwaysExpanded.value)
+                                  IconButton(
+                                    tooltip: _expanded ? 'Close music controls' : 'Open music controls',
+                                    onPressed: () => setState(() {
+                                      final wasExpanded = _expanded;
+                                      _autoExpanded = false;
+                                      _touchExpanded = !wasExpanded;
+                                    }),
+                                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                                  ),
+                              ])),
+                              if (_expanded) SizedBox(height: 132,
+                                child: _ExpandedMusicController(sounds: widget.sounds,
+                                  playback: playback, controlsEnabled: controls)),
+                            ],
+                          ),
                         ),
-                      ),
+                    ),
                   ),
                 ),
               ),
@@ -252,6 +301,7 @@ class _MusicToastOverlayState extends State<MusicToastOverlay> {
       ),
     );
   }
+
 }
 
 class _CollapsedMusicController extends StatelessWidget {

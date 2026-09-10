@@ -1729,8 +1729,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                 ],
               )
             : AnimatedSwitcher(
-                duration: const Duration(milliseconds: 360),
-                reverseDuration: const Duration(milliseconds: 320),
+                duration: Duration(milliseconds: AndroidPlatform.isAndroid ? 180 : 360),
+                reverseDuration: Duration(milliseconds: AndroidPlatform.isAndroid ? 150 : 320),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: (currentChild, previousChildren) => Stack(

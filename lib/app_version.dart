@@ -1,3 +1,3 @@
 abstract final class AppVersion {
-  static const String value = '3.4.5';
+  static const String value = '3.4.6';
 }

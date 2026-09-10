@@ -163,7 +163,8 @@ class _BookAndQuillAppState extends State<BookAndQuillApp>
               return Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              Padding(padding: EdgeInsets.only(top: inset), child: app!),
+              Padding(padding: EdgeInsets.only(top: inset),
+                child: RepaintBoundary(child: app!)),
               if (showMusic) MusicToastOverlay(sounds: widget.sounds),
             ],
               );

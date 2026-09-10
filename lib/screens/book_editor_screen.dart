@@ -2029,24 +2029,32 @@ class _BookEditorScreenState extends State<BookEditorScreen>
   Widget _buildMobileWorkspace() {
     return LayoutBuilder(builder: (context, constraints) {
       final spreadFactor = _twoPage ? 1.75 : 1.0;
-      // Crop only the transparent atlas margins, never the text. The outer
-      // scroll view lets Android reveal the caret above the software keyboard.
-      final pageSize = math.min(700.0,
-        constraints.maxWidth / (spreadFactor - 0.20)).toDouble();
+      // Fit the actual wooden frame, excluding the atlas's transparent edges.
+      // Keep the fixed page/text geometry and let the keyboard viewport scroll.
+      final unitFrame = _transparentVisibleFrame(1.0);
+      final pageSize = math.min(900.0,
+        math.max(0.0, constraints.maxWidth - 8) / unitFrame.width).toDouble();
+      final frame = _transparentVisibleFrame(pageSize);
       final toolsHeight = math.min(290.0,
         math.max(0.0, (constraints.maxHeight - 56) * 0.65)).toDouble();
       return Column(children: <Widget>[
         Expanded(child: ClipRect(child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: SizedBox(
-            width: constraints.maxWidth, height: pageSize,
+            width: constraints.maxWidth, height: frame.height,
             child: OverflowBox(
-              alignment: Alignment.center,
+              alignment: Alignment.topLeft,
               minWidth: pageSize * spreadFactor,
               maxWidth: pageSize * spreadFactor,
               minHeight: pageSize, maxHeight: pageSize,
-              child: SizedBox(width: pageSize * spreadFactor, height: pageSize,
-                child: _buildPages(fillAvailable: true)),
+              child: Transform.translate(
+                offset: Offset((constraints.maxWidth - frame.width) / 2 - frame.left,
+                  -frame.top),
+                child: RepaintBoundary(
+                  child: SizedBox(width: pageSize * spreadFactor, height: pageSize,
+                    child: _buildPages(fillAvailable: true)),
+                ),
+              ),
             ),
           ),
         ))),

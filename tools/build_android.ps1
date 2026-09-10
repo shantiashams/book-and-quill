@@ -1,7 +1,7 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [ValidateSet('debug', 'release')][string]$Mode = 'debug',
+    [ValidateSet('debug', 'profile', 'release')][string]$Mode = 'debug',
     [switch]$Bundle,
     [switch]$Install,
     [string]$DeviceId
