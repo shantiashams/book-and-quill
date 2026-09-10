@@ -1,4 +1,4 @@
-# Book and Quill 3.4.3 — Android
+# Book and Quill 3.4.4 — Android
 
 This update adds Android to the existing Flutter project. Extract the update
 into your current project folder and replace matching files. Keep your existing
@@ -86,6 +86,17 @@ These corrections were inspected locally. Flutter is unavailable in the
 preparation environment, so the next GitHub run must confirm the tests and
 perform APK compilation; this source update does not contain an APK.
 
+## 3.4.4 remaining test fixes
+
+The next GitHub run passed 19 tests and failed two. The lifecycle test now
+simulates inactive -> hidden -> paused -> hidden -> inactive -> resumed,
+restoring the active state in a finally block. The music-island test explicitly
+checks MUSIC IS OFF for the silent fixture before enabling its control notifier
+and checking NO MUSIC PLAYING, collapse, and always-expanded behavior.
+Application lifecycle/audio behavior is unchanged. All 21 tests remain enabled.
+The fixes and archive were checked locally; the next GitHub run must execute
+the tests and compile the APK because Flutter is unavailable locally.
+
 ## First local build on Windows (optional)
 
 1. Install Android Studio and its Android SDK, SDK command-line tools, build
@@ -106,7 +117,7 @@ perform APK compilation; this source update does not contain an APK.
 3. The test APK is written to:
 
    ```text
-   dist\3.4.3\android\Book-and-Quill-3.4.3-android-debug.apk
+   dist\3.4.4\android\Book-and-Quill-3.4.4-android-debug.apk
    ```
 
    Copy it to your Android device to install, or enable USB debugging and run:

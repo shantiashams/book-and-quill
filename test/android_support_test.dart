@@ -178,10 +178,23 @@ void main() {
     await tester.pump();
     expect(find.text('FORMATTING'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    // Match Flutter's Android lifecycle state machine. Directly jumping
+    // paused -> resumed skips states required by AppLifecycleListener.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
-    expect(saved?.pages.first.text, 'Typing on Android');
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    try {
+      await tester.pump();
+      expect(saved?.pages.first.text, 'Typing on Android');
+    } finally {
+      // Restore the binding even if the autosave assertion fails, so later
+      // tests are not left running against a paused application.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+    }
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.viewInsets = const FakeViewPadding();
     tester.view.physicalSize = const Size(900, 700);
@@ -217,7 +230,13 @@ void main() {
     ))));
     await tester.tap(find.byTooltip('Open music controls'));
     await tester.pump(const Duration(milliseconds: 200));
+    // The silent fixture has no audio engine and starts with controls off.
+    expect(find.text('MUSIC IS OFF'), findsOneWidget);
+    expect(find.byTooltip('Close music controls'), findsOneWidget);
+    sounds.musicControlsEnabled.value = true;
+    await tester.pump();
     expect(find.text('NO MUSIC PLAYING'), findsOneWidget);
+    expect(find.text('MUSIC IS OFF'), findsNothing);
     await tester.tap(find.byTooltip('Close music controls'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('NO MUSIC PLAYING'), findsNothing);
