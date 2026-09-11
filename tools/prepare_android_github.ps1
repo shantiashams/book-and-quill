@@ -52,7 +52,7 @@ try {
     }
     Write-Host "Staged the Android build update and $($assets.Count) app assets." -ForegroundColor Green
     & git --no-pager diff --cached --stat
-    Write-Host 'Next: git commit -m "Fix Android island progress and full-screen background - v3.4.8"'
+    Write-Host 'Next: git commit -m "Add Android media session and 18-line pages - v3.5.0"'
     Write-Host 'Then: git pull --no-rebase --no-edit origin main'
     Write-Host 'If that succeeds: git push origin main'
     Write-Host 'Download the APK from GitHub > Actions > Android APK > successful run > Artifacts.'

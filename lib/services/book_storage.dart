@@ -95,7 +95,7 @@ class BookStorage {
 
   Future<AppSettings> loadSettings() async {
     if (!await _settingsFile.exists()) {
-      return AppSettings.defaults;
+      return AppSettings.platformDefaults;
     }
     try {
       final decoded = jsonDecode(await _settingsFile.readAsString());
@@ -105,7 +105,7 @@ class BookStorage {
     } on Object {
       // A damaged preferences file must not prevent the library from opening.
     }
-    return AppSettings.defaults;
+    return AppSettings.platformDefaults;
   }
 
   Future<List<String>> loadShelfNames() async {

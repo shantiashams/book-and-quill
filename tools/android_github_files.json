@@ -48,5 +48,10 @@
   "tools/build_android.ps1",
   "tools/prepare_android_github.ps1",
   "tools/publish_android_github.ps1",
-  "tools/setup_android.ps1"
+  "tools/setup_android.ps1",
+  "lib/services/android_media_session_bridge.dart",
+  "android/app/src/main/kotlin/com/shantiashams/book_and_quill/BookMusicService.kt",
+  "android/app/src/main/res/drawable/ic_music_notification.xml",
+  "test/media_and_page_update_test.dart",
+  "UPDATE_3_5_0.md"
 ]

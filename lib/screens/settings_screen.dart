@@ -238,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _settings = AppSettings.defaults);
+    setState(() => _settings = AppSettings.platformDefaults);
     _applyPreview();
   }
 

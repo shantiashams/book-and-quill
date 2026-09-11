@@ -1,3 +1,5 @@
+import '../services/android_platform.dart';
+
 enum MusicFrequency {
   off,
   defaultFrequency,
@@ -96,6 +98,12 @@ class AppSettings {
 
   static const double defaultBackgroundOpacity = 0.4;
   static const AppSettings defaults = AppSettings();
+  static const AppSettings androidDefaults = AppSettings(
+    musicFrequency: MusicFrequency.off,
+    musicIsland: false,
+  );
+  static AppSettings get platformDefaults =>
+      AndroidPlatform.isAndroid ? androidDefaults : defaults;
 
   bool get soundEnabled => masterVolume > 0;
 
@@ -184,9 +192,11 @@ class AppSettings {
       sliderVolume: normalized('sliderVolume', defaults.sliderVolume),
       musicVolume: normalized('musicVolume', defaults.musicVolume),
       musicFrequency:
-          MusicFrequency.fromStorage(json['musicFrequency']),
+          json['musicFrequency'] == null
+              ? platformDefaults.musicFrequency
+              : MusicFrequency.fromStorage(json['musicFrequency']),
       musicToast: json['musicToast'] as bool? ?? true,
-      musicIsland: json['musicIsland'] as bool? ?? true,
+      musicIsland: json['musicIsland'] as bool? ?? platformDefaults.musicIsland,
       musicIslandAlwaysExpanded:
           json['musicIslandAlwaysExpanded'] as bool? ?? false,
       openBooksInTwoPageMode:

@@ -8,6 +8,7 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../models/app_settings.dart';
 import 'windows_media_session_bridge.dart';
+import 'android_media_session_bridge.dart';
 
 enum GameSound {
   insert(<String>['assets/imported/sounds/insert.ogg']),
@@ -113,6 +114,7 @@ class _SliderTickState {
 class GameSoundService {
   late final SoLoud _engine = SoLoud.instance;
   final WindowsMediaSessionBridge _windowsMedia = WindowsMediaSessionBridge();
+  final AndroidMediaSessionBridge _androidMedia = AndroidMediaSessionBridge();
   final math.Random _random = math.Random();
   final Map<String, bool> _assetAvailability = <String, bool>{};
   final Map<String, AudioSource> _sources = <String, AudioSource>{};
@@ -375,11 +377,12 @@ class GameSoundService {
   bool _androidForeground = true;
   bool _resumeMusicOnForeground = false;
 
-  /// Android playback is foreground-only. Preserve a manually paused song,
-  /// and resume an interrupted song only when the user returns to the app.
+  /// Active Android media sessions keep playing through the media service.
+  /// If native media is unavailable, retain the foreground-only fallback.
   void setAndroidForeground(bool foreground) {
     if (_disposed || _androidForeground == foreground) return;
     _androidForeground = foreground;
+    if (_androidMedia.hasSession) return;
     final handle = _musicHandle;
     if (!foreground) {
       _musicTimer?.cancel();
@@ -484,6 +487,7 @@ class GameSoundService {
     if (_disposed || _initialized) {
       return;
     }
+    await _androidMedia.initialize(_handleAndroidMediaCommand);
     if (await _windowsMedia.initialize()) {
       _startWindowsMediaPolling();
     } else if (_windowsMedia.isSupported) {
@@ -646,7 +650,7 @@ class GameSoundService {
   }
 
   void _scheduleMusicIfNeeded({bool initial = false}) {
-    if (!_androidForeground) return;
+    if (!_androidForeground && !_androidMedia.hasSession) return;
     if (!_canPlayMusic) {
       _musicTimer?.cancel();
       _musicTimer = null;
@@ -678,7 +682,7 @@ class GameSoundService {
 
   bool get _canPlayMusic =>
       !_disposed &&
-      _androidForeground &&
+      (_androidForeground || _androidMedia.hasSession) &&
       masterVolume > 0 &&
       musicVolume > 0 &&
       musicFrequency != MusicFrequency.off;
@@ -712,7 +716,7 @@ class GameSoundService {
     final generation = ++_musicGeneration;
     _musicStartPending = true;
     _musicFinishing = false;
-    await _stopActiveMusic(clearPlayback: true);
+    await _stopActiveMusic(clearPlayback: true, keepAndroidSession: true);
     if (generation != _musicGeneration || !_canPlayMusic) {
       return;
     }
@@ -757,6 +761,19 @@ class GameSoundService {
       if (generation != _musicGeneration || !_canPlayMusic) {
         return;
       }
+      if (_androidMedia.isAvailable) {
+        await _androidMedia.publish(
+          trackId: track.id, title: track.title, artist: track.artist,
+          album: track.album, artworkAssetPath: track.artworkAssetPath,
+          position: Duration.zero, duration: _engine.getLength(source), isPaused: true,
+        );
+        if (!await _androidMedia.requestFocus()) {
+          _musicStartPending = false;
+          await _androidMedia.clear();
+          return;
+        }
+      }
+      if (generation != _musicGeneration || !_canPlayMusic) return;
       final handle = await _engine.play(
         source,
         volume: masterVolume * musicVolume,
@@ -887,6 +904,8 @@ class GameSoundService {
       }
       final position = _engine.getPosition(handle);
       final shouldPause = !_engine.getPause(handle);
+      if (!shouldPause && !await _androidMedia.requestFocus()) return;
+      if (_disposed || _musicHandle != handle) return;
       _engine.setPause(handle, shouldPause);
       _musicPaused = shouldPause;
       _updateMusicPlayback(position);
@@ -1043,7 +1062,7 @@ class GameSoundService {
     MusicPlaybackInfo playback, {
     bool force = false,
   }) {
-    if (!_windowsMedia.isAvailable || playback.isExternal) {
+    if ((!_windowsMedia.isAvailable && !_androidMedia.isAvailable) || playback.isExternal) {
       return;
     }
     final now = DateTime.now();
@@ -1057,6 +1076,7 @@ class GameSoundService {
     _lastSystemMediaSync = now;
     _lastSystemMediaTrackId = playback.trackId;
     _lastSystemMediaPaused = playback.isPaused;
+    unawaited(_publishAndroidPlayback(playback));
     unawaited(_windowsMedia.publishLocal(
       trackId: playback.trackId,
       title: playback.title,
@@ -1068,6 +1088,35 @@ class GameSoundService {
       duration: playback.duration,
       isPaused: playback.isPaused,
     ));
+  }
+
+  Future<void> _publishAndroidPlayback(MusicPlaybackInfo playback) =>
+      _androidMedia.publish(
+        trackId: playback.trackId, title: playback.title, artist: playback.artist,
+        album: playback.album, artworkAssetPath: playback.artworkAssetPath,
+        position: playback.position, duration: playback.duration,
+        isPaused: playback.isPaused,
+      );
+
+  Future<void> _handleAndroidMediaCommand(String name, Duration? position) async {
+    if (_disposed) return;
+    if (name == 'stop') {
+      await _stopMusic();
+      return;
+    }
+    if (_localMusicPlayback == null) {
+      // System controls remain useful in the quiet gap between songs.
+      if (name == 'play' || name == 'next') await nextMusic();
+      else if (name == 'previous') await previousMusic();
+      else if (name == 'pause') {
+        _musicTimer?.cancel();
+        _musicTimer = null;
+        _musicGeneration++;
+        _musicStartPending = false;
+      }
+      return;
+    }
+    await _handleWindowsMediaCommand(WindowsMediaCommand(name, position: position));
   }
 
   void _startWindowsMediaPolling() {
@@ -1335,7 +1384,7 @@ class GameSoundService {
     }
     _musicFinishing = true;
     ++_musicGeneration;
-    await _stopActiveMusic(clearPlayback: true);
+    await _stopActiveMusic(clearPlayback: true, keepAndroidSession: true);
     _musicFinishing = false;
     if (!_disposed) {
       _scheduleMusicIfNeeded();
@@ -1369,11 +1418,16 @@ class GameSoundService {
     _clearToast();
   }
 
-  Future<void> _stopActiveMusic({required bool clearPlayback}) async {
+  Future<void> _stopActiveMusic({required bool clearPlayback, bool keepAndroidSession = false}) async {
     _musicTimer?.cancel();
     _musicTimer = null;
     _musicProgressTimer?.cancel();
     _musicProgressTimer = null;
+    if (keepAndroidSession && _androidMedia.hasSession && _localMusicPlayback != null) {
+      await _publishAndroidPlayback(_copyPlayback(_localMusicPlayback!, isPaused: true));
+    } else if (!keepAndroidSession) {
+      await _androidMedia.clear();
+    }
     final hadLocalPlayback = _localMusicPlayback != null;
     final handle = _musicHandle;
     _musicHandle = null;
@@ -1427,6 +1481,7 @@ class GameSoundService {
     _externalProgressTimer = null;
     await _stopMusic();
     await _windowsMedia.dispose();
+    await _androidMedia.dispose();
     if (_initialized) {
       for (final source in _sources.values) {
         try {

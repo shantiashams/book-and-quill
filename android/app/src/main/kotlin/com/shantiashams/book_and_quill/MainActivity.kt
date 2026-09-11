@@ -16,6 +16,22 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+        val mediaChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "book_and_quill/media")
+        BookMusicService.commandChannel = mediaChannel
+        mediaChannel.setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "initialize" -> result.success(true)
+                    "publish" -> BookMusicService.publish(this, call.arguments as? Map<*, *> ?: emptyMap<String, Any>(), result)
+                    "requestFocus" -> result.success(BookMusicService.requestFocus())
+                    "clear" -> { BookMusicService.clear(this); result.success(null) }
+                    else -> result.notImplemented()
+                }
+            } catch (error: Exception) {
+                result.error("MEDIA_SESSION", error.message, null)
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "book_and_quill/android")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -107,6 +123,9 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        BookMusicService.clear(this)
+        BookMusicService.commandChannel?.setMethodCallHandler(null)
+        BookMusicService.commandChannel = null
         pendingResult?.error("ACTIVITY_CLOSED", "The document picker was closed.", null)
         pendingResult = null
         pendingContents = null

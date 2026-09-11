@@ -11,7 +11,7 @@ enum PageSheetSide {
 }
 
 const double _pageLogicalSize = 600;
-const int _bookGridRows = 15;
+const int _bookGridRows = 18;
 const double _bookGridFontSize = 18;
 const double _bookGridLineAdvance = 22;
 const double _bookGridWidth = 400;
@@ -69,7 +69,7 @@ class PageSheet extends StatelessWidget {
 
     return AspectRatio(
       aspectRatio: 1,
-      // Scale one fixed page surface so resizing never changes the 15 complete
+      // Scale one fixed page surface so resizing never changes the 18 complete
       // rows, word-wrap width, or any interactive alignment.
       child: FittedBox(
         fit: BoxFit.contain,
@@ -216,8 +216,8 @@ class PageSheet extends StatelessWidget {
                     Positioned(
                       left: 140,
                       right: dateRightInset,
-                      bottom: 112,
-                      height: 30,
+                      bottom: 64,
+                      height: 26,
                       child: Focus(
                         key: ValueKey<String>('page-$pageNumber-date'),
                         onFocusChange: (focused) {
@@ -258,7 +258,7 @@ class PageSheet extends StatelessWidget {
                               isDense: true,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 4,
-                                vertical: 7,
+                                vertical: 5,
                               ),
                               counterText: '',
                             ),
@@ -269,7 +269,7 @@ class PageSheet extends StatelessWidget {
                   if (onPreviousPage != null)
                     Positioned(
                       left: previousArrowLeft,
-                      bottom: 72,
+                      bottom: 36,
                       child: _BookPageArrow(
                         key: ValueKey<String>(
                           'page-$pageNumber-back-arrow',
@@ -281,7 +281,7 @@ class PageSheet extends StatelessWidget {
                   if (onNextPage != null)
                     Positioned(
                       right: nextArrowRight,
-                      bottom: 72,
+                      bottom: 36,
                       child: _BookPageArrow(
                         key: ValueKey<String>(
                           'page-$pageNumber-forward-arrow',
@@ -380,7 +380,7 @@ class _BookPageArrowState extends State<_BookPageArrow> {
           onTap: widget.onPressed,
           child: SizedBox(
             width: 58,
-            height: 36,
+            height: 24,
             child: Image.asset(
               'assets/imported/textures/page_$direction$suffix.png',
               fit: BoxFit.contain,
