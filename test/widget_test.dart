@@ -43,7 +43,7 @@ void main() {
       await tester.pumpWidget(pageAt(size));
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.controller?.text, 'abc');
-      expect(field.maxLines, 15);
+      expect(field.maxLines, 18);
       expect(field.style?.fontFamily, 'MinecraftLocalV2');
       expect(field.style?.fontSize, 18);
       await tester.tap(find.byKey(const ValueKey<String>('page-2-indicator')));
