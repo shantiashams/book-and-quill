@@ -25,7 +25,7 @@ try {
     & git diff --cached --quiet
     $diffResult = $LASTEXITCODE
     if ($diffResult -eq 1) {
-        & git commit -m 'Add Android media session and 18-line pages - v3.5.0'
+        & git commit -m 'Keep page arrows inside the book - v3.5.1'
         if ($LASTEXITCODE -ne 0) { throw 'Commit failed. No pull or push was attempted.' }
     } elseif ($diffResult -ne 0) {
         throw 'Could not inspect staged changes. No pull or push was attempted.'
