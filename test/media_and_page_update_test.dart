@@ -115,7 +115,7 @@ void main() {
           final previous = tester.getRect(previousFinder);
           final next = tester.getRect(nextFinder);
           const epsilon = 0.01;
-          expect(grid.height, greaterThanOrEqualTo(18 * 22 * scale - epsilon));
+          expect(grid.height, greaterThanOrEqualTo(18 * 21 * scale - epsilon));
           expect(grid.bottom, lessThanOrEqualTo(stamp.top + epsilon));
           for (final arrow in <Rect>[previous, next]) {
             expect(grid.bottom, lessThanOrEqualTo(arrow.top + epsilon));

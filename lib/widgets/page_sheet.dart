@@ -13,7 +13,10 @@ enum PageSheetSide {
 const double _pageLogicalSize = 600;
 const int _bookGridRows = 18;
 const double _bookGridFontSize = 18;
-const double _bookGridLineAdvance = 22;
+// One less unit between baselines leaves all 18 rows above the taller arrows.
+// Keep the text size, wrapping width, and gap below the page number unchanged.
+const double _bookGridLineAdvance = 21;
+const double _bookHeaderGap = 22;
 const double _bookGridWidth = 400;
 const double _leftPageEditorWidth = 420;
 const double _bookTextStartInset = 12;
@@ -141,7 +144,7 @@ class PageSheet extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: _bookGridLineAdvance),
+                        const SizedBox(height: _bookHeaderGap),
                         SizedBox(
                           key: ValueKey<String>('page-$pageNumber-text-grid'),
                           width: editorHitboxWidth,

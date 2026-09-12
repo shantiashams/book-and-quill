@@ -25,7 +25,7 @@ try {
     & git diff --cached --quiet
     $diffResult = $LASTEXITCODE
     if ($diffResult -eq 1) {
-        & git commit -m 'Fix page arrow placement and footer regression checks - v3.5.2'
+        & git commit -m 'Fit 18 lines above custom page arrows - v3.5.3'
         if ($LASTEXITCODE -ne 0) { throw 'Commit failed. No pull or push was attempted.' }
     } elseif ($diffResult -ne 0) {
         throw 'Could not inspect staged changes. No pull or push was attempted.'

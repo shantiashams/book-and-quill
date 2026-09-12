@@ -52,7 +52,7 @@ try {
     }
     Write-Host "Staged the Android build update and $($assets.Count) app assets." -ForegroundColor Green
     & git --no-pager diff --cached --stat
-    Write-Host 'Next: git commit -m "Fix page arrow placement and footer regression checks - v3.5.2"'
+    Write-Host 'Next: git commit -m "Fit 18 lines above custom page arrows - v3.5.3"'
     Write-Host 'Then: git pull --no-rebase --no-edit origin main'
     Write-Host 'If that succeeds: git push origin main'
     Write-Host 'Download the APK from GitHub > Actions > Android APK > successful run > Artifacts.'
