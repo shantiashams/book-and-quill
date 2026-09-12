@@ -27,6 +27,7 @@ const double _bookGridLineHeight =
 const double _arrowShift = 20;
 const double _footerBottom = 64;
 const double _footerHeight = 26;
+const double _pageArrowBottom = 70;
 const double _pageArrowWidth = 58;
 const double _footerGap = 12;
 
@@ -69,10 +70,11 @@ class PageSheet extends StatelessWidget {
     final previousArrowLeft = side == PageSheetSide.single
         ? 130 - _arrowShift
         : 130 + _arrowShift;
-    // Keep navigation and the editable date in one footer row, above the
-    // texture's lower edge. The 18-row writing viewport ends above this row.
-    final nextArrowLeft = previousArrowLeft + _pageArrowWidth + _footerGap;
-    final dateLeft = nextArrowLeft + _pageArrowWidth + _footerGap;
+    // Anchor navigation to opposite parchment edges. Reserve the space
+    // between the arrows for the editable date, below all 18 writing rows.
+    final nextArrowRight = side == PageSheetSide.left ? 104.0 : 122.0;
+    final dateLeft = previousArrowLeft + _pageArrowWidth + _footerGap;
+    final dateRightInset = nextArrowRight + _pageArrowWidth + _footerGap;
 
     return AspectRatio(
       aspectRatio: 1,
@@ -95,9 +97,6 @@ class PageSheet extends StatelessWidget {
                       side == PageSheetSide.right
                   ? _oneGlyphWrapReduction
                   : 0.0;
-              final dateRightInset = side == PageSheetSide.left
-                  ? 104.0
-                  : 122.0;
               final editorHitboxWidth = side == PageSheetSide.left
                   ? _leftPageEditorWidth
                   : _bookGridWidth;
@@ -276,7 +275,7 @@ class PageSheet extends StatelessWidget {
                   if (onPreviousPage != null)
                     Positioned(
                       left: previousArrowLeft,
-                      bottom: _footerBottom,
+                      bottom: _pageArrowBottom,
                       child: _BookPageArrow(
                         key: ValueKey<String>(
                           'page-$pageNumber-back-arrow',
@@ -287,8 +286,8 @@ class PageSheet extends StatelessWidget {
                     ),
                   if (onNextPage != null)
                     Positioned(
-                      left: nextArrowLeft,
-                      bottom: _footerBottom,
+                      right: nextArrowRight,
+                      bottom: _pageArrowBottom,
                       child: _BookPageArrow(
                         key: ValueKey<String>(
                           'page-$pageNumber-forward-arrow',

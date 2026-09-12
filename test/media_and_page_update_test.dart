@@ -84,7 +84,7 @@ void main() {
   });
 
   for (final platform in <TargetPlatform>[TargetPlatform.android, TargetPlatform.windows]) {
-    testWidgets('18 rows fit above date and arrows on $platform', (tester) async {
+    testWidgets('18 rows and footer controls remain separate and clickable on $platform', (tester) async {
       RichTextEditingController controller(String text) => RichTextEditingController(
         page: RichPage(text: text), onBeforeUserEdit: () {}, onPageChanged: (_) {}, onActiveStyleChanged: (_) {});
       final body = controller(List.generate(18, (i) => 'Line ${i + 1}').join('\n'));
@@ -94,22 +94,55 @@ void main() {
       addTearDown(body.dispose); addTearDown(date.dispose);
       addTearDown(focus.dispose); addTearDown(dateFocus.dispose);
       expect(PageSheet.textRowLimit, 18);
-      for (final side in PageSheetSide.values) {
-        await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(child: SizedBox(
-          width: 600, height: 600,
-          child: PageSheet(controller: body, focusNode: focus,
-            pageNumber: 1, totalPages: 2, onFocused: () {}, readOnly: false,
-            dateController: date, dateFocusNode: dateFocus, onDateFocused: () {},
-            onPreviousPage: () {}, onNextPage: () {}, side: side),
-        )))));
-        final grid = tester.getRect(find.byKey(const ValueKey<String>('page-1-text-grid')));
-        final stamp = tester.getRect(find.byKey(const ValueKey<String>('page-1-date')));
-        final arrow = tester.getRect(find.byKey(const ValueKey<String>('page-1-forward-arrow')));
-        expect(grid.height, greaterThanOrEqualTo(18 * 22));
-        expect(grid.bottom, lessThanOrEqualTo(stamp.top));
-        expect(stamp.bottom, lessThanOrEqualTo(arrow.top));
-        expect(body.text.split('\n').length, 18);
-        expect(tester.takeException(), isNull);
+      for (final pageSize in <double>[300, 450, 600]) {
+        final scale = pageSize / 600;
+        for (final side in PageSheetSide.values) {
+          var previousTaps = 0;
+          var nextTaps = 0;
+          await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(child: SizedBox(
+            width: pageSize, height: pageSize,
+            child: PageSheet(controller: body, focusNode: focus,
+              pageNumber: 1, totalPages: 2, onFocused: () {}, readOnly: false,
+              dateController: date, dateFocusNode: dateFocus, onDateFocused: () {},
+              onPreviousPage: () => previousTaps++,
+              onNextPage: () => nextTaps++, side: side),
+          )))));
+          final sheet = tester.getRect(find.byType(PageSheet));
+          final grid = tester.getRect(find.byKey(const ValueKey<String>('page-1-text-grid')));
+          final stamp = tester.getRect(find.byKey(const ValueKey<String>('page-1-date')));
+          final previousFinder = find.byKey(const ValueKey<String>('page-1-back-arrow'));
+          final nextFinder = find.byKey(const ValueKey<String>('page-1-forward-arrow'));
+          final previous = tester.getRect(previousFinder);
+          final next = tester.getRect(nextFinder);
+          const epsilon = 0.01;
+          expect(grid.height, greaterThanOrEqualTo(18 * 22 * scale - epsilon));
+          expect(grid.bottom, lessThanOrEqualTo(stamp.top + epsilon));
+          for (final arrow in <Rect>[previous, next]) {
+            expect(grid.bottom, lessThanOrEqualTo(arrow.top + epsilon));
+            expect(arrow.overlaps(stamp), isFalse);
+            expect(arrow.left, greaterThanOrEqualTo(sheet.left + 100 * scale - epsilon));
+            expect(arrow.right, lessThanOrEqualTo(sheet.right - 100 * scale + epsilon));
+            expect(arrow.bottom, lessThanOrEqualTo(sheet.top + 530 * scale + epsilon));
+          }
+          expect(previous.right, lessThan(stamp.left));
+          expect(stamp.right, lessThan(next.left));
+          expect(previous.center.dx, lessThan(sheet.center.dx));
+          expect(next.center.dx, greaterThan(sheet.center.dx));
+          await tester.tap(previousFinder);
+          await tester.tap(nextFinder);
+          expect(previousTaps, 1);
+          expect(nextTaps, 1);
+          await tester.tap(find.descendant(
+            of: find.byKey(const ValueKey<String>('page-1-date')),
+            matching: find.byType(TextField),
+          ));
+          await tester.pump();
+          expect(dateFocus.hasFocus, isTrue);
+          dateFocus.unfocus();
+          await tester.pump();
+          expect(body.text.split('\n').length, 18);
+          expect(tester.takeException(), isNull);
+        }
       }
       await tester.pumpWidget(const SizedBox.shrink());
     }, variant: TargetPlatformVariant.only(platform));
