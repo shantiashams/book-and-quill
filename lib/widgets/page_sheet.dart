@@ -27,8 +27,8 @@ const double _bookGridLineHeight =
 const double _arrowShift = 20;
 const double _footerBottom = 64;
 const double _footerHeight = 26;
-const double _pageArrowBottom = 70;
-const double _pageArrowWidth = 58;
+const double _pageArrowBottom =80;
+const double _pageArrowWidth = 72.5;
 const double _footerGap = 12;
 
 class PageSheet extends StatelessWidget {
@@ -72,7 +72,7 @@ class PageSheet extends StatelessWidget {
         : 130 + _arrowShift;
     // Anchor navigation to opposite parchment edges. Reserve the space
     // between the arrows for the editable date, below all 18 writing rows.
-    final nextArrowRight = side == PageSheetSide.left ? 104.0 : 122.0;
+    final nextArrowRight = side == PageSheetSide.left ? 134.0 : 152.0;
     final dateLeft = previousArrowLeft + _pageArrowWidth + _footerGap;
     final dateRightInset = nextArrowRight + _pageArrowWidth + _footerGap;
 
@@ -386,7 +386,7 @@ class _BookPageArrowState extends State<_BookPageArrow> {
           onTap: widget.onPressed,
           child: SizedBox(
             width: _pageArrowWidth,
-            height: 24,
+            height: 30,
             child: Image.asset(
               'assets/imported/textures/page_$direction$suffix.png',
               fit: BoxFit.contain,
