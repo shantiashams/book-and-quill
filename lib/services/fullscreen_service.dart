@@ -3,13 +3,25 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// Controls borderless fullscreen and book-only transparency on Windows.
+/// Controls borderless fullscreen and an always-on-top book overlay on Windows.
 ///
 /// Other supported Flutter platforms fall back to hiding their system UI.
 /// Keeping the Windows implementation here avoids requiring another package or
 /// changes to the native runner for the F11 and F1 shortcuts.
 class FullscreenService {
   static const int transparentBackgroundArgb = 0xFF010203;
+  static _WindowsFullscreenBackend? _activeTransparentBackend;
+
+  /// These actions move the native overlay rather than its Flutter contents.
+  static bool beginTransparentWindowDrag() =>
+      _activeTransparentBackend?.beginWindowDrag() ?? false;
+
+  static bool updateTransparentWindowDrag() =>
+      _activeTransparentBackend?.updateWindowDrag() ?? false;
+
+  static void endTransparentWindowDrag() {
+    _activeTransparentBackend?.endWindowDrag();
+  }
 
   FullscreenService() {
     if (Platform.isWindows) {
@@ -87,10 +99,14 @@ class FullscreenService {
       }
       _fullscreenBeforeTransparent = wasFullscreen;
       _isTransparent = true;
+      _activeTransparentBackend = windows;
       return true;
     }
 
-    windows.exitTransparent();
+    if (!windows.exitTransparent()) {
+      return _isTransparent;
+    }
+    _activeTransparentBackend = null;
     _isTransparent = false;
     final keepFullscreen = _fullscreenBeforeTransparent;
     _fullscreenBeforeTransparent = false;
@@ -102,7 +118,9 @@ class FullscreenService {
 
   void restoreWindow() {
     if (_isTransparent) {
+      _windows?.endWindowDrag();
       _windows?.exitTransparent();
+      _activeTransparentBackend = null;
       _isTransparent = false;
       _fullscreenBeforeTransparent = false;
     }
@@ -169,6 +187,13 @@ final class _MonitorInfo extends Struct {
   @Uint32()
   external int flags;
 }
+
+typedef _GetCursorPosNative = Int32 Function(Pointer<_WinPoint>);
+typedef _GetCursorPosDart = int Function(Pointer<_WinPoint>);
+typedef _GetWindowRectNative = Int32 Function(Pointer<Void>, Pointer<_WinRect>);
+typedef _GetWindowRectDart = int Function(Pointer<Void>, Pointer<_WinRect>);
+typedef _GetDpiForWindowNative = Uint32 Function(Pointer<Void>);
+typedef _GetDpiForWindowDart = int Function(Pointer<Void>);
 
 typedef _GetForegroundWindowNative = Pointer<Void> Function();
 typedef _GetForegroundWindowDart = Pointer<Void> Function();
@@ -269,6 +294,19 @@ class _WindowsFullscreenBackend {
   _WindowsFullscreenBackend() {
     final user32 = DynamicLibrary.open('user32.dll');
     final kernel32 = DynamicLibrary.open('kernel32.dll');
+    _getCursorPos = user32.lookupFunction<_GetCursorPosNative, _GetCursorPosDart>(
+      'GetCursorPos',
+    );
+    _getWindowRect = user32.lookupFunction<_GetWindowRectNative, _GetWindowRectDart>(
+      'GetWindowRect',
+    );
+    try {
+      _getDpiForWindow = user32.lookupFunction<
+          _GetDpiForWindowNative, _GetDpiForWindowDart>('GetDpiForWindow');
+    } on ArgumentError {
+      // GetDpiForWindow was added in Windows 10 version 1607.
+      _getDpiForWindow = null;
+    }
 
     _getForegroundWindow = user32.lookupFunction<
         _GetForegroundWindowNative,
@@ -316,6 +354,7 @@ class _WindowsFullscreenBackend {
   static const int _extendedWindowStyleIndex = -20;
   static const int _overlappedWindowStyle = 0x00CF0000;
   static const int _layeredWindowStyle = 0x00080000;
+  static const int _topmostWindowStyle = 0x00000008;
   static const int _layeredColorKey = 0x00000001;
   static const int _layeredAlpha = 0x00000002;
   // COLORREF stores the Flutter RGB(1, 2, 3) background as 0x00BBGGRR.
@@ -325,9 +364,13 @@ class _WindowsFullscreenBackend {
   static const int _noSize = 0x0001;
   static const int _noMove = 0x0002;
   static const int _noZOrder = 0x0004;
+  static const int _noActivate = 0x0010;
   static const int _frameChanged = 0x0020;
   static const int _noOwnerZOrder = 0x0200;
 
+  late final _GetCursorPosDart _getCursorPos;
+  late final _GetWindowRectDart _getWindowRect;
+  _GetDpiForWindowDart? _getDpiForWindow;
   late final _GetForegroundWindowDart _getForegroundWindow;
   late final _GetWindowLongPtrDart _getWindowLongPtr;
   late final _SetWindowLongPtrDart _setWindowLongPtr;
@@ -346,6 +389,79 @@ class _WindowsFullscreenBackend {
   _SavedWindowPlacement? _savedPlacement;
   Pointer<Void>? _transparentWindow;
   int? _windowExtendedStyle;
+  ({int left, int top, int width, int height})? _boundsBeforeTransparent;
+  ({double x, double y})? _dragAnchor;
+
+  int _windowDpi(Pointer<Void> window) {
+    final dpi = _getDpiForWindow?.call(window) ?? 96;
+    return dpi > 0 ? dpi : 96;
+  }
+
+  ({int left, int top, int width, int height})? _readWindowBounds(
+    Pointer<Void> window,
+  ) {
+    final rect = _allocate<_WinRect>(sizeOf<_WinRect>());
+    if (rect.address == 0) return null;
+    try {
+      if (_getWindowRect(window, rect) == 0) return null;
+      return (
+        left: rect.ref.left, top: rect.ref.top,
+        width: rect.ref.right - rect.ref.left,
+        height: rect.ref.bottom - rect.ref.top,
+      );
+    } finally {
+      _free(rect);
+    }
+  }
+
+  ({int x, int y})? _readCursorPosition() {
+    final point = _allocate<_WinPoint>(sizeOf<_WinPoint>());
+    if (point.address == 0) return null;
+    try {
+      if (_getCursorPos(point) == 0) return null;
+      return (x: point.ref.x, y: point.ref.y);
+    } finally {
+      _free(point);
+    }
+  }
+
+  bool beginWindowDrag() {
+    endWindowDrag();
+    final window = _transparentWindow;
+    if (window == null) return false;
+    final bounds = _readWindowBounds(window);
+    final cursor = _readCursorPosition();
+    if (bounds == null || cursor == null) return false;
+    final scale = _windowDpi(window) / 96.0;
+    _dragAnchor = (
+      x: (cursor.x - bounds.left) / scale,
+      y: (cursor.y - bounds.top) / scale,
+    );
+    return true;
+  }
+
+  bool updateWindowDrag() {
+    final window = _transparentWindow;
+    final anchor = _dragAnchor;
+    if (window == null || anchor == null) return false;
+    final cursor = _readCursorPosition();
+    if (cursor == null) return false;
+    final scale = _windowDpi(window) / 96.0;
+    // Use desktop coordinates, not Flutter event.delta: moving the native
+    // window changes local pointer coordinates. Negative monitor origins are
+    // valid. Rescale the grab offset after a per-monitor DPI change.
+    return _setWindowPos(
+      window, nullptr,
+      (cursor.x - anchor.x * scale).round(),
+      (cursor.y - anchor.y * scale).round(),
+      0, 0,
+      _noSize | _noZOrder | _noActivate | _noOwnerZOrder,
+    ) != 0;
+  }
+
+  void endWindowDrag() {
+    _dragAnchor = null;
+  }
 
   bool enterFullscreen() {
     if (_window != null) {
@@ -473,6 +589,8 @@ class _WindowsFullscreenBackend {
     if (window.address == 0) {
       return false;
     }
+    final originalBounds = _readWindowBounds(window);
+    if (originalBounds == null) return false;
     final extendedStyle = _getWindowLongPtr(
       window,
       _extendedWindowStyleIndex,
@@ -496,25 +614,45 @@ class _WindowsFullscreenBackend {
       );
       return false;
     }
-    _setWindowPos(
-      window,
-      nullptr,
-      0,
-      0,
-      0,
-      0,
-      _noMove | _noSize | _noZOrder | _noOwnerZOrder | _frameChanged,
-    );
+    // Z-order must change here: SWP_NOZORDER would silently ignore TOPMOST.
+    // NOACTIVATE lets the user keep typing in another app after switching away.
+    if (!_setTopmost(window, true)) {
+      _setLayeredWindowAttributes(window, 0, 255, _layeredAlpha);
+      _setWindowLongPtr(window, _extendedWindowStyleIndex, extendedStyle);
+      _setWindowPos(
+        window, nullptr, 0, 0, 0, 0,
+        _noMove | _noSize | _noZOrder | _noActivate |
+            _noOwnerZOrder | _frameChanged,
+      );
+      return false;
+    }
     _transparentWindow = window;
     _windowExtendedStyle = extendedStyle;
+    _boundsBeforeTransparent = originalBounds;
     return true;
   }
 
   bool exitTransparent() {
+    endWindowDrag();
     final window = _transparentWindow;
     final extendedStyle = _windowExtendedStyle;
     if (window == null || extendedStyle == null) {
       return true;
+    }
+    // Moving the overlay also moves its borderless fullscreen host. Restore
+    // that host before showing the normal app, even if F1 began fullscreen.
+    final bounds = _boundsBeforeTransparent;
+    if (bounds != null && _setWindowPos(
+      window, nullptr, bounds.left, bounds.top, bounds.width, bounds.height,
+      _noZOrder | _noActivate | _noOwnerZOrder | _frameChanged,
+    ) == 0) {
+      return false;
+    }
+    // Restore the state from before F1, including a pre-existing topmost flag.
+    // If demotion fails, retain F1 state so the user can retry the toggle.
+    final wasTopmost = (extendedStyle & _topmostWindowStyle) != 0;
+    if (!_setTopmost(window, wasTopmost)) {
+      return false;
     }
     _setLayeredWindowAttributes(
       window,
@@ -534,11 +672,23 @@ class _WindowsFullscreenBackend {
       0,
       0,
       0,
-      _noMove | _noSize | _noZOrder | _noOwnerZOrder | _frameChanged,
+      _noMove | _noSize | _noZOrder | _noActivate |
+          _noOwnerZOrder | _frameChanged,
     );
     _transparentWindow = null;
     _windowExtendedStyle = null;
+    _boundsBeforeTransparent = null;
     return true;
+  }
+
+  bool _setTopmost(Pointer<Void> window, bool enabled) {
+    // Win32 pseudo-handles HWND_TOPMOST (-1) and HWND_NOTOPMOST (-2).
+    return _setWindowPos(
+      window,
+      Pointer<Void>.fromAddress(enabled ? -1 : -2),
+      0, 0, 0, 0,
+      _noMove | _noSize | _noActivate | _noOwnerZOrder | _frameChanged,
+    ) != 0;
   }
 
   Pointer<T> _allocate<T extends NativeType>(int byteCount) {

@@ -45,13 +45,14 @@ RestartApplications=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
+Name: "startmenuicon"; Description: "Create a Start menu shortcut"; GroupDescription: "Shortcuts:"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Book and Quill"; Filename: "{app}\book_and_quill.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\Book and Quill"; Filename: "{app}\book_and_quill.exe"; WorkingDir: "{app}"; IconFilename: "{app}\book_and_quill.exe"; Tasks: startmenuicon
 Name: "{autodesktop}\Book and Quill"; Filename: "{app}\book_and_quill.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]

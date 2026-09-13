@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -155,6 +156,7 @@ class _BookEditorScreenState extends State<BookEditorScreen>
   late String _searchQuery;
   late bool _transparentMode;
   Offset? _transparentBookOffset;
+  bool _nativeTransparentDrag = false;
   double? _transparentBookPageSize;
   bool _showLeftControls = false;
   bool _showRightControls = false;
@@ -246,6 +248,9 @@ class _BookEditorScreenState extends State<BookEditorScreen>
   }
 
   void _handleTransparentModeChanged() {
+    if (!widget.transparentModeListenable.value) {
+      _endTransparentBookDrag();
+    }
     if (mounted) {
       setState(() {
         _transparentMode = widget.transparentModeListenable.value;
@@ -1354,6 +1359,7 @@ class _BookEditorScreenState extends State<BookEditorScreen>
 
   @override
   void dispose() {
+    _endTransparentBookDrag();
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _obfuscationTimer?.cancel();
@@ -1768,7 +1774,31 @@ class _BookEditorScreenState extends State<BookEditorScreen>
     return offset & Size(spreadWidth, pageSize);
   }
 
+  void _beginTransparentBookDrag(Size bounds) {
+    _nativeTransparentDrag = FullscreenService.beginTransparentWindowDrag();
+    if (_nativeTransparentDrag) {
+      // Fix the logical book rect before the native window crosses a DPI
+      // boundary, so a changed window size does not re-center the book.
+      final current = _transparentBookRect(bounds);
+      setState(() {
+        _transparentBookOffset = current.topLeft;
+        _transparentBookPageSize = current.height;
+      });
+    }
+  }
+
+  void _endTransparentBookDrag() {
+    if (_nativeTransparentDrag) {
+      FullscreenService.endTransparentWindowDrag();
+      _nativeTransparentDrag = false;
+    }
+  }
+
   void _moveTransparentBook(Offset delta, Size bounds) {
+    if (_nativeTransparentDrag) {
+      FullscreenService.updateTransparentWindowDrag();
+      return;
+    }
     final current = _transparentBookRect(bounds);
     final offset = _clampTransparentBookOffset(
       current.topLeft + delta,
@@ -1847,6 +1877,8 @@ class _BookEditorScreenState extends State<BookEditorScreen>
   Widget _transparentGestureRegion({
     required MouseCursor cursor,
     required void Function(Offset delta) onPointerMove,
+    void Function(PointerDownEvent event)? onPointerDown,
+    VoidCallback? onPointerEnd,
     double? left,
     double? top,
     double? right,
@@ -1865,7 +1897,14 @@ class _BookEditorScreenState extends State<BookEditorScreen>
         cursor: cursor,
         child: Listener(
           behavior: HitTestBehavior.opaque,
-          onPointerMove: (event) => onPointerMove(event.delta),
+          onPointerDown: onPointerDown,
+          onPointerMove: (event) {
+            if ((event.buttons & kPrimaryButton) != 0) {
+              onPointerMove(event.delta);
+            }
+          },
+          onPointerUp: onPointerEnd == null ? null : (_) => onPointerEnd(),
+          onPointerCancel: onPointerEnd == null ? null : (_) => onPointerEnd(),
         ),
       ),
     );
@@ -1918,6 +1957,13 @@ class _BookEditorScreenState extends State<BookEditorScreen>
                     right: bookRect.width - visibleFrame.right + cornerSize,
                     height: dragHeight,
                     cursor: SystemMouseCursors.move,
+                    onPointerDown: (event) {
+                      if (event.kind == PointerDeviceKind.mouse &&
+                          (event.buttons & kPrimaryButton) != 0) {
+                        _beginTransparentBookDrag(bounds);
+                      }
+                    },
+                    onPointerEnd: _endTransparentBookDrag,
                     onPointerMove: (delta) =>
                         _moveTransparentBook(delta, bounds),
                   ),
@@ -2193,9 +2239,7 @@ class _BookEditorScreenState extends State<BookEditorScreen>
                             initialPageIndex: _currentPage + visibleIndex,
                           ),
                   onPreviousPage:
-                      !_transparentMode &&
-                              (!_twoPage || visibleIndex == 0) &&
-                              canGoBack
+                      (!_twoPage || visibleIndex == 0) && canGoBack
                           ? () => _turnPage(
                                 -1,
                                 jumpToEnd:
@@ -2203,9 +2247,7 @@ class _BookEditorScreenState extends State<BookEditorScreen>
                               )
                           : null,
                   onNextPage:
-                      !_transparentMode &&
-                              (!_twoPage || visibleIndex == 1) &&
-                              canGoForward
+                      (!_twoPage || visibleIndex == 1) && canGoForward
                           ? () => _turnPage(
                                 1,
                                 jumpToEnd:
